@@ -102,3 +102,55 @@ export function hasSpokenArrival(): boolean {
 export function markArrivalSpoken(): void {
   sessionStorage.setItem(ARRIVAL_SPOKEN_KEY, "1");
 }
+
+export const BEGIN_COMPLETED_KEY = "lifebook-begin-completed";
+
+export function hasCompletedBegin(): boolean {
+  if (typeof sessionStorage === "undefined") {
+    return false;
+  }
+
+  return sessionStorage.getItem(BEGIN_COMPLETED_KEY) === "1";
+}
+
+export function markBeginCompleted(): void {
+  sessionStorage.setItem(BEGIN_COMPLETED_KEY, "1");
+}
+
+export const FIRST_THOUGHT_KEY = "lifebook-first-thought";
+
+export type StoredFirstThought = {
+  transcript: string;
+  packId: VoicePackId;
+  submittedAt: string;
+};
+
+export function readStoredFirstThought(): StoredFirstThought | null {
+  if (typeof sessionStorage === "undefined") {
+    return null;
+  }
+
+  const stored = sessionStorage.getItem(FIRST_THOUGHT_KEY);
+  if (!stored) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(stored) as StoredFirstThought;
+    if (
+      typeof parsed.transcript !== "string" ||
+      !SUPPORTED_IDS.has(parsed.packId) ||
+      typeof parsed.submittedAt !== "string"
+    ) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function storeFirstThought(thought: StoredFirstThought): void {
+  sessionStorage.setItem(FIRST_THOUGHT_KEY, JSON.stringify(thought));
+}

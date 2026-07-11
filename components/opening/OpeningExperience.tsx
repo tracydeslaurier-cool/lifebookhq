@@ -1,13 +1,17 @@
 "use client";
 
-import { InvitationInput, type InputMode } from "@/components/opening/InvitationInput";
+import { InvitationInput } from "@/components/opening/InvitationInput";
 import { LanguageSelector } from "@/components/opening/LanguageSelector";
 import { Wordmark } from "@/components/opening/Wordmark";
+import { useFirstConversation } from "@/lib/hooks/useFirstConversation";
 import {
   ARRIVAL_SPOKEN_KEY,
   detectBrowserVoicePack,
+  hasCompletedBegin,
   hasSpokenArrival,
   markArrivalSpoken,
+  markBeginCompleted,
+  readStoredFirstThought,
   readStoredVoicePackId,
   storeVoicePackId,
 } from "@/lib/language";
@@ -19,12 +23,21 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 type Phase = "welcome" | "invitation";
 
 function getDetectedPackId(): VoicePackId {
+  const storedThought = readStoredFirstThought();
+  if (storedThought) {
+    return storedThought.packId;
+  }
+
   const storedId = readStoredVoicePackId();
   return storedId ?? detectBrowserVoicePack().id;
 }
 
 function subscribeToPackId() {
   return () => {};
+}
+
+function getInitialPhase(): Phase {
+  return hasCompletedBegin() ? "invitation" : "welcome";
 }
 
 export function OpeningExperience() {
@@ -37,10 +50,8 @@ export function OpeningExperience() {
     null,
   );
   const pack = getVoicePack(selectedPackId ?? detectedPackId);
-  const [phase, setPhase] = useState<Phase>("welcome");
-  const [inputMode, setInputMode] = useState<InputMode>("none");
-  const [entry, setEntry] = useState("");
-  const [isListening, setIsListening] = useState(false);
+  const [phase, setPhase] = useState<Phase>(getInitialPhase);
+  const conversation = useFirstConversation(pack);
   const hasInitializedSpeech = useRef(false);
 
   useEffect(() => {
@@ -69,6 +80,7 @@ export function OpeningExperience() {
 
   function handleLanguageSelect(id: VoicePackId) {
     const nextPack = getVoicePack(id);
+    conversation.handleLanguageChange();
     setSelectedPackId(id);
     storeVoicePackId(id);
     document.documentElement.lang = nextPack.locale;
@@ -82,6 +94,7 @@ export function OpeningExperience() {
   }
 
   function handleBegin() {
+    markBeginCompleted();
     setPhase("invitation");
     cancelSpeech();
     speakText(pack.strings.whatsOnYourMind, pack);
@@ -133,12 +146,15 @@ export function OpeningExperience() {
 
             <InvitationInput
               pack={pack}
-              mode={inputMode}
-              value={entry}
-              isListening={isListening}
-              onValueChange={setEntry}
-              onModeChange={setInputMode}
-              onListeningChange={setIsListening}
+              isActive={phase === "invitation"}
+              isSubmitted={conversation.isSubmitted}
+              value={conversation.transcript}
+              voicePrefix={conversation.voicePrefix}
+              isListening={conversation.isListening}
+              onValueChange={conversation.handleTranscriptChange}
+              onSubmit={conversation.handleSubmit}
+              onMicToggle={conversation.handleMicToggle}
+              onListeningEnd={conversation.handleListeningEnd}
             />
           </div>
         </div>

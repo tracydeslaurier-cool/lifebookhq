@@ -12,12 +12,54 @@ function getSpeechRecognitionConstructor():
   return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
 }
 
+function normalizeLanguageTag(tag: string): string {
+  return tag.trim().toLowerCase().replace(/_/g, "-");
+}
+
 export function isSpeechSynthesisSupported(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
 
 export function isSpeechRecognitionSupported(): boolean {
   return getSpeechRecognitionConstructor() !== null;
+}
+
+export function selectBestVoice(speechLang: string): SpeechSynthesisVoice | null {
+  if (!isSpeechSynthesisSupported()) {
+    return null;
+  }
+
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0) {
+    return null;
+  }
+
+  const target = normalizeLanguageTag(speechLang);
+  const [language] = target.split("-");
+
+  const exactMatch = voices.find(
+    (voice) => normalizeLanguageTag(voice.lang) === target,
+  );
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const regionalMatch = voices.find((voice) => {
+    const voiceLang = normalizeLanguageTag(voice.lang);
+    return voiceLang.startsWith(`${language}-`);
+  });
+  if (regionalMatch) {
+    return regionalMatch;
+  }
+
+  const languageMatch = voices.find((voice) =>
+    normalizeLanguageTag(voice.lang).startsWith(language),
+  );
+  if (languageMatch) {
+    return languageMatch;
+  }
+
+  return voices[0] ?? null;
 }
 
 export function cancelSpeech(): void {
@@ -50,8 +92,29 @@ export function speakText(
     utterance.onerror = () => onEnd();
   }
 
-  window.speechSynthesis.speak(utterance);
+  const beginSpeaking = () => {
+    const voice = selectBestVoice(pack.speechLang);
+    if (voice) {
+      utterance.voice = voice;
+    }
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  if (window.speechSynthesis.getVoices().length > 0) {
+    beginSpeaking();
+    return;
+  }
+
+  window.speechSynthesis.addEventListener("voiceschanged", beginSpeaking, {
+    once: true,
+  });
 }
+
+export type SpeechRecognitionResult = {
+  transcript: string;
+  isFinal: boolean;
+};
 
 export type SpeechRecognitionSession = {
   stop: () => void;
@@ -59,8 +122,9 @@ export type SpeechRecognitionSession = {
 
 export function startSpeechRecognition(
   pack: VoicePack,
-  onResult: (transcript: string, isFinal: boolean) => void,
+  onResult: (result: SpeechRecognitionResult) => void,
   onError?: () => void,
+  prefix = "",
 ): SpeechRecognitionSession | null {
   const Recognition = getSpeechRecognitionConstructor();
   if (!Recognition) {
@@ -73,15 +137,26 @@ export function startSpeechRecognition(
   recognition.continuous = true;
   recognition.interimResults = true;
 
+  let committed = "";
+
   recognition.onresult = (event: SpeechRecognitionEvent) => {
-    let transcript = "";
+    let interim = "";
 
     for (let index = event.resultIndex; index < event.results.length; index++) {
-      transcript += event.results[index][0].transcript;
+      const result = event.results[index];
+      const segment = result[0]?.transcript ?? "";
+
+      if (result.isFinal) {
+        committed += segment;
+      } else {
+        interim += segment;
+      }
     }
 
-    const isFinal = event.results[event.results.length - 1]?.isFinal ?? false;
-    onResult(transcript.trim(), isFinal);
+    onResult({
+      transcript: `${prefix}${committed}${interim}`,
+      isFinal: interim.length === 0,
+    });
   };
 
   recognition.onerror = () => {

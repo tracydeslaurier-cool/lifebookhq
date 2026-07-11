@@ -11,26 +11,33 @@ export type InputMode = "none" | "text" | "voice";
 
 type InvitationInputProps = {
   pack: VoicePack;
-  mode: InputMode;
+  isActive: boolean;
+  isSubmitted: boolean;
   value: string;
+  voicePrefix: string;
   isListening: boolean;
   onValueChange: (value: string) => void;
-  onModeChange: (mode: InputMode) => void;
-  onListeningChange: (listening: boolean) => void;
+  onSubmit: () => void;
+  onMicToggle: () => void;
+  onListeningEnd: () => void;
 };
 
 export function InvitationInput({
   pack,
-  mode,
+  isActive,
+  isSubmitted,
   value,
+  voicePrefix,
   isListening,
   onValueChange,
-  onModeChange,
-  onListeningChange,
+  onSubmit,
+  onMicToggle,
+  onListeningEnd,
 }: InvitationInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mounted, setMounted] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const recognitionRef = useRef<ReturnType<typeof startSpeechRecognition> | null>(
     null,
   );
@@ -43,7 +50,15 @@ export function InvitationInput({
   }, []);
 
   useEffect(() => {
-    if (!isListening) {
+    if (!isActive || isSubmitted) {
+      return;
+    }
+
+    textareaRef.current?.focus();
+  }, [isActive, isSubmitted]);
+
+  useEffect(() => {
+    if (!isListening || isSubmitted) {
       recognitionRef.current?.stop();
       recognitionRef.current = null;
       return;
@@ -51,12 +66,13 @@ export function InvitationInput({
 
     const session = startSpeechRecognition(
       pack,
-      (transcript) => {
-        onValueChange(transcript);
+      (result) => {
+        onValueChange(result.transcript);
       },
       () => {
-        onListeningChange(false);
+        onListeningEnd();
       },
+      voicePrefix,
     );
 
     recognitionRef.current = session;
@@ -65,38 +81,25 @@ export function InvitationInput({
       session?.stop();
       recognitionRef.current = null;
     };
-  }, [isListening, onListeningChange, onValueChange, pack]);
+  }, [
+    isListening,
+    isSubmitted,
+    onListeningEnd,
+    onValueChange,
+    pack,
+    voicePrefix,
+  ]);
 
-  function handleTextChange(nextValue: string) {
-    if (mode === "voice") {
-      onValueChange(nextValue);
+  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || isSubmitted) {
       return;
     }
 
-    if (mode === "none") {
-      onModeChange("text");
-    }
-
-    onValueChange(nextValue);
+    event.preventDefault();
+    onSubmit();
   }
 
-  function handleMicrophoneToggle() {
-    if (!speechSupported || mode === "text") {
-      return;
-    }
-
-    if (isListening) {
-      onListeningChange(false);
-      return;
-    }
-
-    if (mode === "none") {
-      onModeChange("voice");
-    }
-
-    onListeningChange(true);
-    textareaRef.current?.focus();
-  }
+  const placeholderVisible = !isFocused && value.length === 0 && !isSubmitted;
 
   return (
     <div className="mt-14 w-full max-w-xl">
@@ -109,19 +112,27 @@ export function InvitationInput({
           id="storykeeper-entry"
           value={value}
           rows={3}
+          readOnly={isSubmitted}
           placeholder={pack.strings.inputPlaceholder}
-          onChange={(event) => handleTextChange(event.target.value)}
+          onChange={(event) => onValueChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           className={[
-            "w-full resize-none bg-transparent font-sans text-xl font-extralight leading-relaxed tracking-[0.04em]",
-            "text-[var(--lb-fg)] placeholder:text-[var(--lb-fg-muted)] placeholder:opacity-50",
+            "lb-invitation-input w-full resize-none bg-transparent font-sans text-xl font-extralight leading-relaxed tracking-[0.04em]",
+            "text-[var(--lb-fg)] placeholder:text-[var(--lb-fg-muted)]",
             "border-b border-[var(--lb-border)] pb-4 pr-14",
-            "outline-none transition-[border-color] duration-700 focus:border-[var(--lb-fg-soft)]",
+            "outline-none transition-[border-color,opacity] duration-700 focus:border-[var(--lb-fg-soft)]",
+            placeholderVisible
+              ? "placeholder:opacity-50"
+              : "placeholder:opacity-0",
+            isSubmitted ? "opacity-60" : "opacity-100",
           ].join(" ")}
         />
-        {mounted && speechSupported && mode !== "text" ? (
+        {mounted && speechSupported && !isSubmitted ? (
           <button
             type="button"
-            onClick={handleMicrophoneToggle}
+            onClick={onMicToggle}
             aria-pressed={isListening}
             aria-label={
               isListening
