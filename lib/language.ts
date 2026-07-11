@@ -117,40 +117,46 @@ export function markBeginCompleted(): void {
   sessionStorage.setItem(BEGIN_COMPLETED_KEY, "1");
 }
 
-export const FIRST_THOUGHT_KEY = "lifebook-first-thought";
+/** Unfinished draft only — never used for submitted thoughts. */
+export const DRAFT_THOUGHT_KEY = "lifebook-draft-thought";
 
-export type StoredFirstThought = {
-  transcript: string;
-  packId: VoicePackId;
-  submittedAt: string;
-};
+/** Legacy key from earlier sprints — cleared on read, never restored. */
+const LEGACY_FIRST_THOUGHT_KEY = "lifebook-first-thought";
 
-export function readStoredFirstThought(): StoredFirstThought | null {
-  if (typeof sessionStorage === "undefined") {
-    return null;
-  }
-
-  const stored = sessionStorage.getItem(FIRST_THOUGHT_KEY);
+function readDraftFromStorage(): string | null {
+  const stored = sessionStorage.getItem(DRAFT_THOUGHT_KEY);
   if (!stored) {
     return null;
   }
 
-  try {
-    const parsed = JSON.parse(stored) as StoredFirstThought;
-    if (
-      typeof parsed.transcript !== "string" ||
-      !SUPPORTED_IDS.has(parsed.packId) ||
-      typeof parsed.submittedAt !== "string"
-    ) {
-      return null;
-    }
-
-    return parsed;
-  } catch {
-    return null;
-  }
+  const trimmed = stored.trim();
+  return trimmed.length > 0 ? stored : null;
 }
 
-export function storeFirstThought(thought: StoredFirstThought): void {
-  sessionStorage.setItem(FIRST_THOUGHT_KEY, JSON.stringify(thought));
+function clearLegacySubmittedThought(): void {
+  const legacy = sessionStorage.getItem(LEGACY_FIRST_THOUGHT_KEY);
+  if (!legacy) {
+    return;
+  }
+
+  sessionStorage.removeItem(LEGACY_FIRST_THOUGHT_KEY);
+}
+
+/** Stable getSnapshot for useSyncExternalStore — returns a primitive string. */
+export function readStoredDraftText(): string | null {
+  if (typeof sessionStorage === "undefined") {
+    return null;
+  }
+
+  clearLegacySubmittedThought();
+
+  return readDraftFromStorage();
+}
+
+export function storeDraftText(transcript: string): void {
+  sessionStorage.setItem(DRAFT_THOUGHT_KEY, transcript);
+}
+
+export function clearDraftText(): void {
+  sessionStorage.removeItem(DRAFT_THOUGHT_KEY);
 }

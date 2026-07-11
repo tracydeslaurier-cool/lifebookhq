@@ -5,14 +5,24 @@ import {
   startSpeechRecognition,
 } from "@/lib/speech";
 import type { VoicePack } from "@/lib/voice-packs/types";
-import { useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 
 export type InputMode = "none" | "text" | "voice";
+
+export type InvitationInputHandle = {
+  focus: () => void;
+};
 
 type InvitationInputProps = {
   pack: VoicePack;
   isActive: boolean;
-  isSubmitted: boolean;
+  isAcknowledging: boolean;
   value: string;
   voicePrefix: string;
   isListening: boolean;
@@ -22,18 +32,24 @@ type InvitationInputProps = {
   onListeningEnd: () => void;
 };
 
-export function InvitationInput({
-  pack,
-  isActive,
-  isSubmitted,
-  value,
-  voicePrefix,
-  isListening,
-  onValueChange,
-  onSubmit,
-  onMicToggle,
-  onListeningEnd,
-}: InvitationInputProps) {
+export const InvitationInput = forwardRef<
+  InvitationInputHandle,
+  InvitationInputProps
+>(function InvitationInput(
+  {
+    pack,
+    isActive,
+    isAcknowledging,
+    value,
+    voicePrefix,
+    isListening,
+    onValueChange,
+    onSubmit,
+    onMicToggle,
+    onListeningEnd,
+  },
+  ref,
+) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mounted, setMounted] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
@@ -41,6 +57,19 @@ export function InvitationInput({
   const recognitionRef = useRef<ReturnType<typeof startSpeechRecognition> | null>(
     null,
   );
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        return;
+      }
+
+      textarea.focus();
+      const length = textarea.value.length;
+      textarea.setSelectionRange(length, length);
+    },
+  }));
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -50,15 +79,28 @@ export function InvitationInput({
   }, []);
 
   useEffect(() => {
-    if (!isActive || isSubmitted) {
+    if (!isActive) {
       return;
     }
 
-    textareaRef.current?.focus();
-  }, [isActive, isSubmitted]);
+    const frame = requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        return;
+      }
+
+      textarea.focus();
+      const length = textarea.value.length;
+      textarea.setSelectionRange(length, length);
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [isActive, isAcknowledging]);
 
   useEffect(() => {
-    if (!isListening || isSubmitted) {
+    if (!isListening) {
       recognitionRef.current?.stop();
       recognitionRef.current = null;
       return;
@@ -81,17 +123,10 @@ export function InvitationInput({
       session?.stop();
       recognitionRef.current = null;
     };
-  }, [
-    isListening,
-    isSubmitted,
-    onListeningEnd,
-    onValueChange,
-    pack,
-    voicePrefix,
-  ]);
+  }, [isListening, onListeningEnd, onValueChange, pack, voicePrefix]);
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== "Enter" || event.shiftKey || isSubmitted) {
+    if (event.key !== "Enter" || event.shiftKey) {
       return;
     }
 
@@ -99,7 +134,7 @@ export function InvitationInput({
     onSubmit();
   }
 
-  const placeholderVisible = !isFocused && value.length === 0 && !isSubmitted;
+  const placeholderVisible = !isFocused && value.length === 0;
 
   return (
     <div className="mt-14 w-full max-w-xl">
@@ -112,7 +147,6 @@ export function InvitationInput({
           id="storykeeper-entry"
           value={value}
           rows={3}
-          readOnly={isSubmitted}
           placeholder={pack.strings.inputPlaceholder}
           onChange={(event) => onValueChange(event.target.value)}
           onKeyDown={handleKeyDown}
@@ -120,16 +154,18 @@ export function InvitationInput({
           onBlur={() => setIsFocused(false)}
           className={[
             "lb-invitation-input w-full resize-none bg-transparent font-sans text-xl font-extralight leading-relaxed tracking-[0.04em]",
-            "text-[var(--lb-fg)] placeholder:text-[var(--lb-fg-muted)]",
-            "border-b border-[var(--lb-border)] pb-4 pr-14",
+            "text-[var(--lb-fg)] caret-[var(--lb-fg-soft)] placeholder:text-[var(--lb-fg-muted)]",
+            "border-b pb-4 pr-14",
             "outline-none transition-[border-color,opacity] duration-700 focus:border-[var(--lb-fg-soft)]",
+            isAcknowledging
+              ? "border-[var(--lb-accent)] opacity-80"
+              : "border-[var(--lb-border)] opacity-100",
             placeholderVisible
               ? "placeholder:opacity-50"
               : "placeholder:opacity-0",
-            isSubmitted ? "opacity-60" : "opacity-100",
           ].join(" ")}
         />
-        {mounted && speechSupported && !isSubmitted ? (
+        {mounted && speechSupported ? (
           <button
             type="button"
             onClick={onMicToggle}
@@ -163,4 +199,4 @@ export function InvitationInput({
       </div>
     </div>
   );
-}
+});

@@ -2,64 +2,60 @@
 
 import type { InputMode } from "@/components/opening/InvitationInput";
 import {
-  readStoredFirstThought,
-  storeFirstThought,
-  type StoredFirstThought,
+  clearDraftText,
+  readStoredDraftText,
+  storeDraftText,
+  storeVoicePackId,
 } from "@/lib/language";
 import { cancelSpeech } from "@/lib/speech";
 import type { VoicePack } from "@/lib/voice-packs/types";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-function readInitialConversationState(): {
-  transcript: string;
-  isSubmitted: boolean;
-} {
-  const stored = readStoredFirstThought();
-  if (stored) {
-    return {
-      transcript: stored.transcript,
-      isSubmitted: true,
-    };
-  }
+const ACKNOWLEDGEMENT_MS = 1500;
 
-  return {
-    transcript: "",
-    isSubmitted: false,
-  };
+function subscribeToSessionStorage() {
+  return () => {};
 }
 
 export function useFirstConversation(pack: VoicePack) {
-  const [transcript, setTranscript] = useState(
-    () => readInitialConversationState().transcript,
+  const storedDraft = useSyncExternalStore(
+    subscribeToSessionStorage,
+    readStoredDraftText,
+    () => null,
   );
+
+  const [liveTranscript, setLiveTranscript] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<InputMode>("none");
   const [isListening, setIsListening] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(
-    () => readInitialConversationState().isSubmitted,
-  );
   const [voicePrefix, setVoicePrefix] = useState("");
+  const [isAcknowledging, setIsAcknowledging] = useState(false);
   const shouldRestartListeningRef = useRef(false);
+  const acknowledgementTimerRef = useRef<number | null>(null);
+
+  const transcript = liveTranscript ?? storedDraft ?? "";
 
   const stopListening = useCallback(() => {
     setIsListening(false);
   }, []);
 
-  const startListening = useCallback(() => {
-    if (isSubmitted) {
+  const persistDraft = useCallback((value: string) => {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) {
+      storeDraftText(value);
       return;
     }
 
+    clearDraftText();
+  }, []);
+
+  const startListening = useCallback(() => {
     setVoicePrefix(transcript);
     setInputMode("voice");
     setIsListening(true);
-  }, [isSubmitted, transcript]);
+  }, [transcript]);
 
   const handleTranscriptChange = useCallback(
     (value: string) => {
-      if (isSubmitted) {
-        return;
-      }
-
       if (isListening) {
         stopListening();
         setVoicePrefix("");
@@ -69,27 +65,13 @@ export function useFirstConversation(pack: VoicePack) {
         setInputMode("text");
       }
 
-      setTranscript(value);
+      setLiveTranscript(value);
+      persistDraft(value);
     },
-    [inputMode, isListening, isSubmitted, stopListening],
-  );
-
-  const handleRecognitionResult = useCallback(
-    (value: string) => {
-      if (isSubmitted) {
-        return;
-      }
-
-      setTranscript(value);
-    },
-    [isSubmitted],
+    [inputMode, isListening, persistDraft, stopListening],
   );
 
   const handleMicToggle = useCallback(() => {
-    if (isSubmitted) {
-      return;
-    }
-
     if (isListening) {
       stopListening();
       setVoicePrefix("");
@@ -97,7 +79,7 @@ export function useFirstConversation(pack: VoicePack) {
     }
 
     startListening();
-  }, [isListening, isSubmitted, startListening, stopListening]);
+  }, [isListening, startListening, stopListening]);
 
   const handleListeningEnd = useCallback(() => {
     setIsListening(false);
@@ -106,7 +88,7 @@ export function useFirstConversation(pack: VoicePack) {
 
   const handleSubmit = useCallback(() => {
     const trimmed = transcript.trim();
-    if (!trimmed || isSubmitted) {
+    if (!trimmed) {
       return;
     }
 
@@ -114,17 +96,21 @@ export function useFirstConversation(pack: VoicePack) {
     stopListening();
     setVoicePrefix("");
 
-    const submission: StoredFirstThought = {
-      transcript: trimmed,
-      packId: pack.id,
-      submittedAt: new Date().toISOString(),
-    };
+    clearDraftText();
+    storeVoicePackId(pack.id);
+    setLiveTranscript("");
+    setInputMode("none");
+    setIsAcknowledging(true);
 
-    storeFirstThought(submission);
-    setTranscript(trimmed);
-    setIsSubmitted(true);
-    setInputMode("text");
-  }, [isSubmitted, pack.id, stopListening, transcript]);
+    if (acknowledgementTimerRef.current !== null) {
+      window.clearTimeout(acknowledgementTimerRef.current);
+    }
+
+    acknowledgementTimerRef.current = window.setTimeout(() => {
+      setIsAcknowledging(false);
+      acknowledgementTimerRef.current = null;
+    }, ACKNOWLEDGEMENT_MS);
+  }, [pack.id, stopListening, transcript]);
 
   const handleLanguageChange = useCallback(() => {
     cancelSpeech();
@@ -138,22 +124,29 @@ export function useFirstConversation(pack: VoicePack) {
   }, [isListening, stopListening]);
 
   useEffect(() => {
-    if (!shouldRestartListeningRef.current || isSubmitted) {
+    if (!shouldRestartListeningRef.current) {
       return;
     }
 
     shouldRestartListeningRef.current = false;
     startListening();
-  }, [isSubmitted, pack.id, startListening]);
+  }, [pack.id, startListening]);
+
+  useEffect(() => {
+    return () => {
+      if (acknowledgementTimerRef.current !== null) {
+        window.clearTimeout(acknowledgementTimerRef.current);
+      }
+    };
+  }, []);
 
   return {
     transcript,
     inputMode,
     isListening,
-    isSubmitted,
+    isAcknowledging,
     voicePrefix,
     handleTranscriptChange,
-    handleRecognitionResult,
     handleMicToggle,
     handleListeningEnd,
     handleSubmit,
