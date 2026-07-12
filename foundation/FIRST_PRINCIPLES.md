@@ -83,3 +83,35 @@ Frameworks will change.
 Human nature will not.
 
 Always build for the latter.
+
+## Memories, not stories
+
+LifeBook is built around memories because everyone has them.
+
+Stories emerge naturally from memories.
+
+We never ask people to become storytellers.
+We simply invite them to remember.
+
+## Memories precede stories
+
+LifeBook never asks people to become storytellers.
+
+It helps them remember.
+
+Memories are immediate, authentic, and universal.
+Stories emerge naturally as memories accumulate and connect.
+
+The Companion therefore invites memories, not narratives.
+
+We trust that if enough memories are preserved, the story of a life will reveal itself.
+
+## Nothing is too small to remember
+
+People cannot know today which memories will matter tomorrow.
+
+LifeBook never asks users to justify why a memory deserves preservation.
+
+If it is remembered, it is enough.
+
+Meaning often appears only years later, when memories connect into a life.

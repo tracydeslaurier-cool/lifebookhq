@@ -1,5 +1,6 @@
 "use client";
 
+import { CompanionResponse } from "@/components/opening/CompanionResponse";
 import {
   InvitationInput,
   type InvitationInputHandle,
@@ -59,7 +60,24 @@ export function OpeningExperience() {
   const pack = getVoicePack(selectedPackId ?? sessionPackId);
   const isInvitation = hasBegun || sessionBeginCompleted;
   const conversation = useFirstConversation(pack);
+  const {
+    activateReplyInput,
+    companionReply,
+    showCompanionResponse,
+    isInputActive,
+    isReadyForReply,
+    submittedThought,
+    transcript,
+    voicePrefix,
+    isListening,
+    handleTranscriptChange,
+    handleSubmit,
+    handleMicToggle,
+    handleListeningEnd,
+    handleLanguageChange,
+  } = conversation;
   const hasInitializedSpeech = useRef(false);
+  const companionSpokenRef = useRef(false);
   const inputRef = useRef<InvitationInputHandle>(null);
 
   useEffect(() => {
@@ -81,7 +99,22 @@ export function OpeningExperience() {
   }, [isClientReady, isInvitation, pack]);
 
   useEffect(() => {
-    if (!isClientReady || !isInvitation) {
+    if (!showCompanionResponse || !companionReply || companionSpokenRef.current) {
+      return;
+    }
+
+    companionSpokenRef.current = true;
+
+    speakText(companionReply.text, pack, () => {
+      activateReplyInput();
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+    });
+  }, [activateReplyInput, companionReply, pack, showCompanionResponse]);
+
+  useEffect(() => {
+    if (!isClientReady || !isInvitation || !isInputActive) {
       return;
     }
 
@@ -92,7 +125,7 @@ export function OpeningExperience() {
     return () => {
       cancelAnimationFrame(frame);
     };
-  }, [conversation.isAcknowledging, isClientReady, isInvitation]);
+  }, [isClientReady, isInputActive, isInvitation, isReadyForReply]);
 
   useEffect(() => {
     return () => {
@@ -102,7 +135,7 @@ export function OpeningExperience() {
 
   function handleLanguageSelect(id: VoicePackId) {
     const nextPack = getVoicePack(id);
-    conversation.handleLanguageChange();
+    handleLanguageChange();
     setSelectedPackId(id);
     storeVoicePackId(id);
     document.documentElement.lang = nextPack.locale;
@@ -180,19 +213,34 @@ export function OpeningExperience() {
               {pack.strings.whatsOnYourMind}
             </p>
 
-            <InvitationInput
-              ref={inputRef}
-              pack={pack}
-              isActive={isInvitation}
-              isAcknowledging={conversation.isAcknowledging}
-              value={conversation.transcript}
-              voicePrefix={conversation.voicePrefix}
-              isListening={conversation.isListening}
-              onValueChange={conversation.handleTranscriptChange}
-              onSubmit={conversation.handleSubmit}
-              onMicToggle={conversation.handleMicToggle}
-              onListeningEnd={conversation.handleListeningEnd}
-            />
+            {submittedThought ? (
+              <p className="mt-10 w-full max-w-xl font-sans text-xl font-extralight leading-relaxed tracking-[0.04em] text-[var(--lb-fg)] sm:text-2xl">
+                {submittedThought}
+              </p>
+            ) : null}
+
+            {companionReply ? (
+              <CompanionResponse
+                opening={companionReply.opening}
+                question={companionReply.question}
+                visible={showCompanionResponse}
+              />
+            ) : null}
+
+            {isInputActive ? (
+              <InvitationInput
+                ref={inputRef}
+                pack={pack}
+                isActive={isInvitation}
+                value={transcript}
+                voicePrefix={voicePrefix}
+                isListening={isListening}
+                onValueChange={handleTranscriptChange}
+                onSubmit={handleSubmit}
+                onMicToggle={handleMicToggle}
+                onListeningEnd={handleListeningEnd}
+              />
+            ) : null}
           </div>
         </div>
       </main>

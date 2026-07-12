@@ -1,6 +1,8 @@
 "use client";
 
 import type { InputMode } from "@/components/opening/InvitationInput";
+import { companionRespond } from "@/lib/companion/respond";
+import type { CompanionReply } from "@/lib/companion/types";
 import {
   clearDraftText,
   readStoredDraftText,
@@ -11,7 +13,7 @@ import { cancelSpeech } from "@/lib/speech";
 import type { VoicePack } from "@/lib/voice-packs/types";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-const ACKNOWLEDGEMENT_MS = 1500;
+const RESPONSE_DELAY_MS = 800;
 
 function subscribeToSessionStorage() {
   return () => {};
@@ -28,11 +30,19 @@ export function useFirstConversation(pack: VoicePack) {
   const [inputMode, setInputMode] = useState<InputMode>("none");
   const [isListening, setIsListening] = useState(false);
   const [voicePrefix, setVoicePrefix] = useState("");
-  const [isAcknowledging, setIsAcknowledging] = useState(false);
+  const [submittedThought, setSubmittedThought] = useState<string | null>(null);
+  const [companionReply, setCompanionReply] = useState<CompanionReply | null>(
+    null,
+  );
+  const [showCompanionResponse, setShowCompanionResponse] = useState(false);
+  const [isReadyForReply, setIsReadyForReply] = useState(false);
+
   const shouldRestartListeningRef = useRef(false);
-  const acknowledgementTimerRef = useRef<number | null>(null);
+  const responseDelayTimerRef = useRef<number | null>(null);
+  const hasCompanionRespondedRef = useRef(false);
 
   const transcript = liveTranscript ?? storedDraft ?? "";
+  const isInputActive = submittedThought === null || isReadyForReply;
 
   const stopListening = useCallback(() => {
     setIsListening(false);
@@ -53,6 +63,10 @@ export function useFirstConversation(pack: VoicePack) {
     setInputMode("voice");
     setIsListening(true);
   }, [transcript]);
+
+  const activateReplyInput = useCallback(() => {
+    setIsReadyForReply(true);
+  }, []);
 
   const handleTranscriptChange = useCallback(
     (value: string) => {
@@ -98,19 +112,35 @@ export function useFirstConversation(pack: VoicePack) {
 
     clearDraftText();
     storeVoicePackId(pack.id);
-    setLiveTranscript("");
-    setInputMode("none");
-    setIsAcknowledging(true);
 
-    if (acknowledgementTimerRef.current !== null) {
-      window.clearTimeout(acknowledgementTimerRef.current);
+    if (!hasCompanionRespondedRef.current) {
+      hasCompanionRespondedRef.current = true;
+      setSubmittedThought(trimmed);
+      setLiveTranscript("");
+      setInputMode("none");
+      setCompanionReply(
+        companionRespond({
+          thought: trimmed,
+          pack,
+          turn: "first",
+        }),
+      );
+
+      if (responseDelayTimerRef.current !== null) {
+        window.clearTimeout(responseDelayTimerRef.current);
+      }
+
+      responseDelayTimerRef.current = window.setTimeout(() => {
+        setShowCompanionResponse(true);
+        responseDelayTimerRef.current = null;
+      }, RESPONSE_DELAY_MS);
+
+      return;
     }
 
-    acknowledgementTimerRef.current = window.setTimeout(() => {
-      setIsAcknowledging(false);
-      acknowledgementTimerRef.current = null;
-    }, ACKNOWLEDGEMENT_MS);
-  }, [pack.id, stopListening, transcript]);
+    setLiveTranscript("");
+    setInputMode("none");
+  }, [pack, stopListening, transcript]);
 
   const handleLanguageChange = useCallback(() => {
     cancelSpeech();
@@ -134,8 +164,8 @@ export function useFirstConversation(pack: VoicePack) {
 
   useEffect(() => {
     return () => {
-      if (acknowledgementTimerRef.current !== null) {
-        window.clearTimeout(acknowledgementTimerRef.current);
+      if (responseDelayTimerRef.current !== null) {
+        window.clearTimeout(responseDelayTimerRef.current);
       }
     };
   }, []);
@@ -144,8 +174,13 @@ export function useFirstConversation(pack: VoicePack) {
     transcript,
     inputMode,
     isListening,
-    isAcknowledging,
+    isInputActive,
+    isReadyForReply,
+    submittedThought,
+    companionReply,
+    showCompanionResponse,
     voicePrefix,
+    activateReplyInput,
     handleTranscriptChange,
     handleMicToggle,
     handleListeningEnd,

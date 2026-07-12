@@ -15,6 +15,29 @@ Every design decision, every line of code, every animation, every spoken word, a
 If a feature does not deepen trust or help tell a person's story, it does not belong.
 
 ---
+## The First Promise
+
+LifeBook never asks the Storykeeper to prove that their life is worth remembering.
+
+It begins with the belief that every life already is.
+
+Everything else follows from that truth.
+
+## The Hypermemory Principle
+
+LifeBook does not interview the Storykeeper.
+
+It gently awakens one memory.
+
+That memory naturally awakens another.
+
+The Storykeeper should often feel surprised by where the conversation leads.
+
+The Companion does not direct this journey.
+
+It simply walks beside them.
+
+The most meaningful memories are often discovered rather than intentionally recalled.
 
 # Who Is LifeBook?
 
@@ -837,3 +860,9 @@ If they trust it with their thoughts…
 If they return not out of habit, but because it feels like coming home…
 
 Then we have succeeded.
+
+Every feature review begins with:
+
+Does this sound like us?
+
+Would this feel right if it were my grandmother coming home to her stories?

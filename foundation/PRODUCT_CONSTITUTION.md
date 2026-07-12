@@ -241,3 +241,36 @@ LifeBook succeeds when:
 - technology fades into the background
 
 If people forget they are using software and simply feel like they are preserving their lives, we have succeeded.
+
+# The Storykeeper"s Journey
+
+First, make it safe to begin.
+
+Then, make it comforting to return.
+
+Every subsequent interaction should feel less like logging in
+and more like coming home.
+
+# Trust
+
+Trust is not claimed.
+
+Trust is earned through every interaction.
+
+Every decision should increase trust.
+
+# Story Ownership
+
+LifeBook does not judge lives.
+
+LifeBook does not edit lives.
+
+Storykeepers determine how their stories are shared.
+
+LifeBook provides the tools to honor those choices.
+
+# Identity
+
+The Storykeeper owns the journey.
+
+The device is merely today's doorway.

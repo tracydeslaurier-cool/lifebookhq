@@ -61,3 +61,22 @@ The experience should unfold like scenes rather than screens.
 Reason:
 
 People should remember the relationship, not the software.
+
+Decision 007 - LifeBook is built on Hypermemories
+
+Decision 008 - Identity shall be person-centric,
+not device-centric.
+
+Reason:
+
+Storykeepers must be able to move
+between library,
+home,
+church,
+work,
+phones,
+tablets
+and shared computers.
+
+The story belongs to the Storykeeper,
+never the device.

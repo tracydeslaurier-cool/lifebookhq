@@ -22,7 +22,6 @@ export type InvitationInputHandle = {
 type InvitationInputProps = {
   pack: VoicePack;
   isActive: boolean;
-  isAcknowledging: boolean;
   value: string;
   voicePrefix: string;
   isListening: boolean;
@@ -39,7 +38,6 @@ export const InvitationInput = forwardRef<
   {
     pack,
     isActive,
-    isAcknowledging,
     value,
     voicePrefix,
     isListening,
@@ -97,7 +95,7 @@ export const InvitationInput = forwardRef<
     return () => {
       cancelAnimationFrame(frame);
     };
-  }, [isActive, isAcknowledging]);
+  }, [isActive]);
 
   useEffect(() => {
     if (!isListening) {
@@ -155,11 +153,8 @@ export const InvitationInput = forwardRef<
           className={[
             "lb-invitation-input w-full resize-none bg-transparent font-sans text-xl font-extralight leading-relaxed tracking-[0.04em]",
             "text-[var(--lb-fg)] caret-[var(--lb-fg-soft)] placeholder:text-[var(--lb-fg-muted)]",
-            "border-b pb-4 pr-14",
+            "border-b border-[var(--lb-border)] pb-4 pr-14",
             "outline-none transition-[border-color,opacity] duration-700 focus:border-[var(--lb-fg-soft)]",
-            isAcknowledging
-              ? "border-[var(--lb-accent)] opacity-80"
-              : "border-[var(--lb-border)] opacity-100",
             placeholderVisible
               ? "placeholder:opacity-50"
               : "placeholder:opacity-0",
