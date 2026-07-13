@@ -117,6 +117,24 @@ export function markBeginCompleted(): void {
   sessionStorage.setItem(BEGIN_COMPLETED_KEY, "1");
 }
 
+/** The server-side conversation this arrival belongs to. */
+export const CONVERSATION_ID_KEY = "lifebook-conversation-id";
+
+export function readStoredConversationId(): string | null {
+  if (typeof sessionStorage === "undefined") {
+    return null;
+  }
+  return sessionStorage.getItem(CONVERSATION_ID_KEY);
+}
+
+export function storeConversationId(id: string): void {
+  sessionStorage.setItem(CONVERSATION_ID_KEY, id);
+}
+
+export function clearStoredConversationId(): void {
+  sessionStorage.removeItem(CONVERSATION_ID_KEY);
+}
+
 /** Unfinished draft only — never used for submitted thoughts. */
 export const DRAFT_THOUGHT_KEY = "lifebook-draft-thought";
 

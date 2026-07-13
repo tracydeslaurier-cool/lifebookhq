@@ -1,24 +1,44 @@
 "use client";
 
 import type { InputMode } from "@/components/opening/InvitationInput";
-import { companionRespond } from "@/lib/companion/respond";
 import type { CompanionReply } from "@/lib/companion/types";
 import {
+  beginConversation,
+  entrustMoment,
+  saveDraft,
+} from "@/lib/client/api";
+import {
   clearDraftText,
+  clearStoredConversationId,
   readStoredDraftText,
+  storeConversationId,
   storeDraftText,
   storeVoicePackId,
 } from "@/lib/language";
 import { cancelSpeech } from "@/lib/speech";
 import type { VoicePack } from "@/lib/voice-packs/types";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 const RESPONSE_DELAY_MS = 800;
+const DRAFT_SAVE_DEBOUNCE_MS = 1200;
 
 function subscribeToSessionStorage() {
   return () => {};
 }
 
+/**
+ * The first conversation.
+ *
+ * The Storykeeper's words live server-side: the conversation is real, the
+ * draft survives a closed tab, and a submitted Moment is entrusted to the
+ * Archive. sessionStorage remains only as a local echo between keystrokes.
+ */
 export function useFirstConversation(pack: VoicePack) {
   const storedDraft = useSyncExternalStore(
     subscribeToSessionStorage,
@@ -39,24 +59,70 @@ export function useFirstConversation(pack: VoicePack) {
 
   const shouldRestartListeningRef = useRef(false);
   const responseDelayTimerRef = useRef<number | null>(null);
-  const hasCompanionRespondedRef = useRef(false);
+  const draftSaveTimerRef = useRef<number | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
+  const conversationPromiseRef = useRef<Promise<string> | null>(null);
+  const isSubmittingRef = useRef(false);
 
   const transcript = liveTranscript ?? storedDraft ?? "";
   const isInputActive = submittedThought === null || isReadyForReply;
+
+  /**
+   * The conversation pointer lives on the server, behind the session cookie.
+   * Asking to begin *is* asking to come back: the server resumes the Book's
+   * open conversation and returns any unfinished thought with it.
+   */
+  const ensureConversation = useCallback((): Promise<string> => {
+    if (conversationIdRef.current) {
+      return Promise.resolve(conversationIdRef.current);
+    }
+    if (!conversationPromiseRef.current) {
+      conversationPromiseRef.current = beginConversation(pack.id).then(
+        ({ conversationId, draft }) => {
+          conversationIdRef.current = conversationId;
+          storeConversationId(conversationId);
+          // A thought left unfinished in another tab, another hour, comes home.
+          if (draft && !readStoredDraftText()) {
+            storeDraftText(draft);
+            setLiveTranscript(draft);
+          }
+          return conversationId;
+        },
+      );
+      conversationPromiseRef.current.catch(() => {
+        conversationPromiseRef.current = null;
+      });
+    }
+    return conversationPromiseRef.current;
+  }, [pack.id]);
 
   const stopListening = useCallback(() => {
     setIsListening(false);
   }, []);
 
-  const persistDraft = useCallback((value: string) => {
-    const trimmed = value.trim();
-    if (trimmed.length > 0) {
-      storeDraftText(value);
-      return;
-    }
+  const persistDraft = useCallback(
+    (value: string) => {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        storeDraftText(value);
+      } else {
+        clearDraftText();
+      }
 
-    clearDraftText();
-  }, []);
+      if (draftSaveTimerRef.current !== null) {
+        window.clearTimeout(draftSaveTimerRef.current);
+      }
+      draftSaveTimerRef.current = window.setTimeout(() => {
+        draftSaveTimerRef.current = null;
+        ensureConversation()
+          .then((id) => saveDraft(id, value))
+          .catch(() => {
+            // The local echo still holds the words; the next save retries.
+          });
+      }, DRAFT_SAVE_DEBOUNCE_MS);
+    },
+    [ensureConversation],
+  );
 
   const startListening = useCallback(() => {
     setVoicePrefix(transcript);
@@ -102,45 +168,46 @@ export function useFirstConversation(pack: VoicePack) {
 
   const handleSubmit = useCallback(() => {
     const trimmed = transcript.trim();
-    if (!trimmed) {
+    if (!trimmed || isSubmittingRef.current) {
       return;
     }
 
     cancelSpeech();
     stopListening();
     setVoicePrefix("");
-
-    clearDraftText();
     storeVoicePackId(pack.id);
 
-    if (!hasCompanionRespondedRef.current) {
-      hasCompanionRespondedRef.current = true;
-      setSubmittedThought(trimmed);
-      setLiveTranscript("");
-      setInputMode("none");
-      setCompanionReply(
-        companionRespond({
-          thought: trimmed,
-          pack,
-          turn: "first",
-        }),
-      );
-
-      if (responseDelayTimerRef.current !== null) {
-        window.clearTimeout(responseDelayTimerRef.current);
-      }
-
-      responseDelayTimerRef.current = window.setTimeout(() => {
-        setShowCompanionResponse(true);
-        responseDelayTimerRef.current = null;
-      }, RESPONSE_DELAY_MS);
-
-      return;
-    }
-
+    isSubmittingRef.current = true;
+    setSubmittedThought(trimmed);
     setLiveTranscript("");
     setInputMode("none");
-  }, [pack, stopListening, transcript]);
+
+    ensureConversation()
+      .then((id) => entrustMoment(id, trimmed, pack.id))
+      .then((reply) => {
+        clearDraftText();
+        setCompanionReply({ opening: reply.text, question: "", text: reply.text });
+
+        if (responseDelayTimerRef.current !== null) {
+          window.clearTimeout(responseDelayTimerRef.current);
+        }
+        responseDelayTimerRef.current = window.setTimeout(() => {
+          setShowCompanionResponse(true);
+          responseDelayTimerRef.current = null;
+        }, RESPONSE_DELAY_MS);
+      })
+      .catch(() => {
+        // The words were not entrusted — they must not be lost.
+        // Return them to the Storykeeper's hands, unchanged.
+        setSubmittedThought(null);
+        setLiveTranscript(trimmed);
+        storeDraftText(trimmed);
+        setInputMode("text");
+      })
+      .finally(() => {
+        isSubmittingRef.current = false;
+      });
+  }, [ensureConversation, pack.id, stopListening, transcript]);
 
   const handleLanguageChange = useCallback(() => {
     cancelSpeech();
@@ -167,6 +234,9 @@ export function useFirstConversation(pack: VoicePack) {
       if (responseDelayTimerRef.current !== null) {
         window.clearTimeout(responseDelayTimerRef.current);
       }
+      if (draftSaveTimerRef.current !== null) {
+        window.clearTimeout(draftSaveTimerRef.current);
+      }
     };
   }, []);
 
@@ -181,6 +251,7 @@ export function useFirstConversation(pack: VoicePack) {
     showCompanionResponse,
     voicePrefix,
     activateReplyInput,
+    beginArrival: ensureConversation,
     handleTranscriptChange,
     handleMicToggle,
     handleListeningEnd,
@@ -188,3 +259,5 @@ export function useFirstConversation(pack: VoicePack) {
     handleLanguageChange,
   };
 }
+
+export { clearStoredConversationId };

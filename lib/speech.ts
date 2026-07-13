@@ -24,6 +24,66 @@ export function isSpeechRecognitionSupported(): boolean {
   return getSpeechRecognitionConstructor() !== null;
 }
 
+/**
+ * Browser TTS is interim (AD-5 retires it for a real voice provider), but
+ * until then the voice must not frighten anyone. macOS ships novelty voices
+ * ("Albert", "Fred", "Whisper", …) at the front of the list; naive
+ * first-match selection hands the threshold to a ghost.
+ */
+const NOVELTY_VOICES = [
+  "albert", "bad news", "bahh", "bells", "boing", "bubbles", "cellos",
+  "deranged", "eddy", "flo", "fred", "good news", "grandma", "grandpa",
+  "jester", "junior", "kathy", "organ", "ralph", "reed", "rocko", "sandy",
+  "shelley", "superstar", "trinoids", "whisper", "wobble", "zarvox", "hysterical",
+];
+
+/** Warm, human-quality voices worth seeking out, per language. */
+const PREFERRED_VOICES: Record<string, string[]> = {
+  en: ["samantha", "ava", "allison", "zoe", "google us english", "karen", "moira", "daniel", "serena", "tessa"],
+  uk: ["lesya", "google українська"],
+  ru: ["milena", "google русский"],
+  fr: ["amelie", "amélie", "thomas", "audrey", "google français"],
+  de: ["anna", "petra", "google deutsch"],
+  es: ["monica", "mónica", "paulina", "google español"],
+  pl: ["zosia", "google polski"],
+  it: ["alice", "google italiano"],
+};
+
+function scoreVoice(
+  voice: SpeechSynthesisVoice,
+  target: string,
+  language: string,
+): number {
+  const name = voice.name.toLowerCase();
+  const voiceLang = normalizeLanguageTag(voice.lang);
+
+  // Language fit is the entry ticket.
+  let score = 0;
+  if (voiceLang === target) score += 40;
+  else if (voiceLang.startsWith(`${language}-`)) score += 30;
+  else if (voiceLang.startsWith(language)) score += 20;
+  else return -1000; // wrong language entirely
+
+  // Never the ghost.
+  if (NOVELTY_VOICES.some((novelty) => name.includes(novelty))) {
+    score -= 500;
+  }
+
+  const preferred = PREFERRED_VOICES[language] ?? [];
+  const preferredIndex = preferred.findIndex((p) => name.includes(p));
+  if (preferredIndex >= 0) {
+    score += 100 - preferredIndex; // earlier in the list = warmer
+  }
+
+  if (name.includes("premium") || name.includes("enhanced")) score += 15;
+  if (name.includes("natural")) score += 10;
+  if (name.startsWith("google") || name.startsWith("microsoft")) score += 8;
+  if (voice.default) score += 3;
+  if (name.includes("compact")) score -= 20;
+
+  return score;
+}
+
 export function selectBestVoice(speechLang: string): SpeechSynthesisVoice | null {
   if (!isSpeechSynthesisSupported()) {
     return null;
@@ -37,29 +97,20 @@ export function selectBestVoice(speechLang: string): SpeechSynthesisVoice | null
   const target = normalizeLanguageTag(speechLang);
   const [language] = target.split("-");
 
-  const exactMatch = voices.find(
-    (voice) => normalizeLanguageTag(voice.lang) === target,
-  );
-  if (exactMatch) {
-    return exactMatch;
+  let best: SpeechSynthesisVoice | null = null;
+  let bestScore = -Infinity;
+  for (const voice of voices) {
+    const score = scoreVoice(voice, target, language);
+    if (score > bestScore) {
+      best = voice;
+      bestScore = score;
+    }
   }
 
-  const regionalMatch = voices.find((voice) => {
-    const voiceLang = normalizeLanguageTag(voice.lang);
-    return voiceLang.startsWith(`${language}-`);
-  });
-  if (regionalMatch) {
-    return regionalMatch;
-  }
-
-  const languageMatch = voices.find((voice) =>
-    normalizeLanguageTag(voice.lang).startsWith(language),
-  );
-  if (languageMatch) {
-    return languageMatch;
-  }
-
-  return voices[0] ?? null;
+  // A heavily penalized novelty voice may still "win" if it is the only
+  // match for the language — better an odd voice than silence, and the
+  // real remedy is AD-5's provider voice.
+  return bestScore > -1000 ? best : (voices[0] ?? null);
 }
 
 export function cancelSpeech(): void {

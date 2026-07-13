@@ -6,6 +6,7 @@ import {
   type InvitationInputHandle,
 } from "@/components/opening/InvitationInput";
 import { LanguageSelector } from "@/components/opening/LanguageSelector";
+import { StoryInvitation } from "@/components/opening/StoryInvitation";
 import { Wordmark } from "@/components/opening/Wordmark";
 import { useFirstConversation } from "@/lib/hooks/useFirstConversation";
 import {
@@ -57,11 +58,17 @@ export function OpeningExperience() {
     null,
   );
   const [hasBegun, setHasBegun] = useState(false);
+  // Coming home: recognized Storykeepers skip the threshold ceremony and are
+  // greeted — quieter and warmer than arrival. null = not yet checked.
+  const [homecoming, setHomecoming] = useState<
+    { recognized: boolean; greeting: string | null } | null
+  >(null);
   const pack = getVoicePack(selectedPackId ?? sessionPackId);
   const isInvitation = hasBegun || sessionBeginCompleted;
   const conversation = useFirstConversation(pack);
   const {
     activateReplyInput,
+    beginArrival,
     companionReply,
     showCompanionResponse,
     isInputActive,
@@ -84,8 +91,45 @@ export function OpeningExperience() {
     document.documentElement.lang = pack.locale;
   }, [pack.locale]);
 
+  // Ask "am I home?" before anything speaks — a recognized Storykeeper is
+  // greeted, never re-welcomed like a stranger.
   useEffect(() => {
-    if (!isClientReady || hasInitializedSpeech.current || isInvitation) {
+    if (!isClientReady || homecoming !== null) {
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/home")
+      .then((response) => response.json())
+      .then((body: { recognized: boolean; greeting?: string }) => {
+        if (cancelled) return;
+        if (body.recognized) {
+          markBeginCompleted();
+          setHasBegun(true);
+          setHomecoming({ recognized: true, greeting: body.greeting ?? null });
+          if (body.greeting) {
+            speakText(body.greeting, pack);
+          }
+        } else {
+          setHomecoming({ recognized: false, greeting: null });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHomecoming({ recognized: false, greeting: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClientReady, homecoming]);
+
+  useEffect(() => {
+    if (
+      !isClientReady ||
+      hasInitializedSpeech.current ||
+      isInvitation ||
+      homecoming === null || // don't speak to a stranger who may be family
+      homecoming.recognized
+    ) {
       return;
     }
 
@@ -96,7 +140,7 @@ export function OpeningExperience() {
         markArrivalSpoken();
       });
     }
-  }, [isClientReady, isInvitation, pack]);
+  }, [homecoming, isClientReady, isInvitation, pack]);
 
   useEffect(() => {
     if (!showCompanionResponse || !companionReply || companionSpokenRef.current) {
@@ -133,6 +177,18 @@ export function OpeningExperience() {
     };
   }, []);
 
+  // Arriving already past the threshold (a reload, a return): reconnect to
+  // the conversation immediately so any unfinished thought is waiting in the
+  // input before the Storykeeper touches anything.
+  useEffect(() => {
+    if (!isClientReady || !isInvitation) {
+      return;
+    }
+    void beginArrival().catch(() => {
+      // Recovered on first keystroke or submission.
+    });
+  }, [beginArrival, isClientReady, isInvitation]);
+
   function handleLanguageSelect(id: VoicePackId) {
     const nextPack = getVoicePack(id);
     handleLanguageChange();
@@ -152,6 +208,11 @@ export function OpeningExperience() {
     markBeginCompleted();
     setHasBegun(true);
     cancelSpeech();
+    // The conversation becomes real the moment the threshold is crossed,
+    // so the first thought has somewhere safe to land.
+    void beginArrival().catch(() => {
+      // Retried automatically on first draft save or submission.
+    });
     speakText(pack.strings.whatsOnYourMind, pack);
 
     requestAnimationFrame(() => {
@@ -209,9 +270,9 @@ export function OpeningExperience() {
             ].join(" ")}
             aria-hidden={!isInvitation}
           >
-            <p className="font-sans text-2xl font-extralight leading-relaxed tracking-[0.06em] text-[var(--lb-fg-soft)] sm:text-3xl md:text-4xl">
+            <h1 className="font-sans text-2xl font-extralight leading-relaxed tracking-[0.06em] text-[var(--lb-fg-soft)] sm:text-3xl md:text-4xl">
               {pack.strings.whatsOnYourMind}
-            </p>
+            </h1>
 
             {submittedThought ? (
               <p className="mt-10 w-full max-w-xl font-sans text-xl font-extralight leading-relaxed tracking-[0.04em] text-[var(--lb-fg)] sm:text-2xl">
@@ -224,6 +285,12 @@ export function OpeningExperience() {
                 opening={companionReply.opening}
                 question={companionReply.question}
                 visible={showCompanionResponse}
+              />
+            ) : homecoming?.recognized && homecoming.greeting ? (
+              <CompanionResponse
+                opening={homecoming.greeting}
+                question=""
+                visible
               />
             ) : null}
 
@@ -240,6 +307,12 @@ export function OpeningExperience() {
                 onMicToggle={handleMicToggle}
                 onListeningEnd={handleListeningEnd}
               />
+            ) : null}
+
+            {homecoming !== null &&
+            !homecoming.recognized &&
+            showCompanionResponse ? (
+              <StoryInvitation pack={pack} />
             ) : null}
           </div>
         </div>
