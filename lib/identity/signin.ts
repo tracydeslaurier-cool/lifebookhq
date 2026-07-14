@@ -26,13 +26,17 @@ function normalizeEmail(email: string): string {
 }
 
 /**
- * Dev transport: the doorway is printed to the server console, honestly
- * labelled. A real transactional sender arrives with hosting (Week 0 gate);
- * in production, an unconfigured transport refuses rather than pretends
- * (Decision 020).
+ * Doorway delivery. Unconfigured transport in production refuses rather
+ * than pretends (Decision 020). Dev prints to the console, honestly
+ * labelled. "postmark" sends real email (staging and beyond).
+ *
+ * The email carries only the doorway — never memories. Copy follows the
+ * Trust Interaction sequence (obs #5): why, what, how long, what if missed.
  */
 async function deliverDoorway(email: string, url: string): Promise<void> {
-  if (process.env.EMAIL_TRANSPORT === undefined) {
+  const transport = process.env.EMAIL_TRANSPORT;
+
+  if (transport === undefined) {
     if (process.env.NODE_ENV === "production") {
       throw new Error("No email transport configured; refusing to pretend.");
     }
@@ -41,7 +45,47 @@ async function deliverDoorway(email: string, url: string): Promise<void> {
     );
     return;
   }
-  throw new Error(`Unknown EMAIL_TRANSPORT: ${process.env.EMAIL_TRANSPORT}`);
+
+  if (transport === "postmark") {
+    const token = process.env.POSTMARK_SERVER_TOKEN;
+    const from = process.env.EMAIL_FROM;
+    if (!token || !from) {
+      throw new Error("Postmark transport needs POSTMARK_SERVER_TOKEN and EMAIL_FROM.");
+    }
+
+    const response = await fetch("https://api.postmarkapp.com/email", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "X-Postmark-Server-Token": token,
+      },
+      body: JSON.stringify({
+        From: from,
+        To: email,
+        Subject: "Your doorway into LifeBook",
+        TextBody: [
+          "You asked LifeBook to be able to find you — here is your doorway.",
+          "",
+          "Open this link on whichever device you'd like to continue on:",
+          url,
+          "",
+          `It works once and stays open for about ${TOKEN_MINUTES} minutes.`,
+          "If it closes before you arrive, no harm done — your story is",
+          "always there, and you can ask it for another doorway anytime.",
+        ].join("\n"),
+        MessageStream: "outbound",
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Doorway delivery failed (${response.status}): ${detail.slice(0, 200)}`);
+    }
+    return;
+  }
+
+  throw new Error(`Unknown EMAIL_TRANSPORT: ${transport}`);
 }
 
 export async function requestSignIn(input: {
@@ -110,24 +154,22 @@ export async function completeSignIn(rawToken: string): Promise<Homecoming> {
     }
 
     // Claim the Book the doorway carried — an INSERT, never a rewrite.
+    // A Storykeeper may hold multiple claimed Books (Decision 012); V1
+    // presents them as one story. This matters in practice: ephemeral
+    // sessions (incognito, cleared cookies) create fresh unclaimed Books,
+    // and the memories in them belong to the person who entrusted them —
+    // never to the 30-day expiry (defect found 2026-07-16, "stranded Olga").
     if (token.book_id) {
-      const hasClaim = await tx.query(
-        `select 1 from identity.book_claim where storykeeper_id = $1`,
-        [storykeeperId],
-      );
       const bookClaimed = await tx.query(
         `select 1 from identity.book_claim where book_id = $1`,
         [token.book_id],
       );
-      if (!hasClaim.rows[0] && !bookClaimed.rows[0]) {
+      if (!bookClaimed.rows[0]) {
         await tx.query(
           `insert into identity.book_claim (book_id, storykeeper_id) values ($1, $2)`,
           [token.book_id, storykeeperId],
         );
       }
-      // A Storykeeper with an existing claimed Book who arrives carrying a
-      // second unclaimed one: V1 leaves the second to the unclaimed-expiry
-      // window rather than silently merging lives. Logged limitation.
     }
 
     return { storykeeperId, returning };

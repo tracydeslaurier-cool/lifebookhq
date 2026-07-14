@@ -26,6 +26,13 @@ const UNCLAIMED_BOOK_DAYS = 30;
 const SPENT_TOKEN_DAYS = 7;
 
 const execute = process.argv.includes("--execute");
+const forgetIndex = process.argv.indexOf("--forget");
+const forgetStorykeeperId =
+  forgetIndex >= 0 ? process.argv[forgetIndex + 1] : null;
+if (forgetIndex >= 0 && !forgetStorykeeperId) {
+  console.error("Usage: keeper.mjs --forget <storykeeper-id> [--execute]");
+  process.exit(1);
+}
 const url = process.env.KEEPER_DATABASE_URL;
 if (!url) {
   console.error(
@@ -41,8 +48,112 @@ function say(line) {
   console.log(line);
 }
 
+/**
+ * --forget <storykeeper-id>: the Storykeeper's right to vanish, as a tested
+ * capability rather than a promise. Removes EVERYTHING: every claimed Book
+ * and its contents, sessions, credentials, tokens, the identity itself.
+ * Dry-run by default; every execution confesses to audit.deletion_event.
+ */
+async function forget(storykeeperId) {
+  const person = await client.query(
+    `select id, created_at from identity.storykeeper where id = $1`,
+    [storykeeperId],
+  );
+  if (!person.rows[0]) {
+    say(`No Storykeeper ${storykeeperId} exists. Nothing to forget.`);
+    return;
+  }
+
+  const census = await client.query(
+    `select count(distinct bc.book_id) as books,
+            count(distinct c.id) as conversations,
+            count(m.id) as moments
+       from identity.book_claim bc
+       left join entrusted.conversation c on c.book_id = bc.book_id
+       left join entrusted.moment m on m.conversation_id = c.id
+      where bc.storykeeper_id = $1`,
+    [storykeeperId],
+  );
+  const { books, conversations, moments } = census.rows[0];
+  say(
+    `${execute ? "FORGETTING" : "Would forget"} Storykeeper ${storykeeperId}: ` +
+      `${books} book(s), ${conversations} conversation(s), ${moments} moment(s), ` +
+      `plus sessions, credentials, and identity.`,
+  );
+
+  if (!execute) return;
+
+  // Everything hangs off the claimed Books and the identity. FK-safe order.
+  const bookIds = (
+    await client.query(
+      `select book_id from identity.book_claim where storykeeper_id = $1`,
+      [storykeeperId],
+    )
+  ).rows.map((row) => row.book_id);
+
+  for (const bookId of bookIds) {
+    await client.query(
+      `delete from provisional.draft_contribution d using entrusted.conversation c
+        where d.conversation_id = c.id and c.book_id = $1`,
+      [bookId],
+    );
+    await client.query(
+      `delete from entrusted.companion_turn ct using entrusted.conversation c
+        where ct.conversation_id = c.id and c.book_id = $1`,
+      [bookId],
+    );
+    await client.query(
+      `delete from entrusted.moment m using entrusted.conversation c
+        where m.conversation_id = c.id and c.book_id = $1`,
+      [bookId],
+    );
+    await client.query(`delete from entrusted.conversation where book_id = $1`, [bookId]);
+    await client.query(`delete from identity.signin_token where book_id = $1`, [bookId]);
+    await client.query(`delete from identity.session_book where book_id = $1`, [bookId]);
+    await client.query(`delete from identity.book_claim where book_id = $1`, [bookId]);
+    await client.query(`delete from identity.contributor where book_id = $1`, [bookId]);
+    await client.query(`delete from identity.book where id = $1`, [bookId]);
+  }
+
+  // Doorway tokens addressed to their credentials, then identity itself.
+  await client.query(
+    `delete from identity.signin_token t using identity.credential cr
+      where cr.storykeeper_id = $1 and t.value_hash = cr.value_hash`,
+    [storykeeperId],
+  );
+  await client.query(`delete from identity.session where storykeeper_id = $1`, [storykeeperId]);
+  await client.query(`delete from identity.credential where storykeeper_id = $1`, [storykeeperId]);
+  await client.query(`delete from identity.storykeeper where id = $1`, [storykeeperId]);
+
+  await client.query(
+    `insert into audit.deletion_event (what, requested_by)
+     values ($1, 'keeper: storykeeper requested to be forgotten')`,
+    [
+      `storykeeper ${storykeeperId}: ${books} book(s), ${conversations} conversation(s), ` +
+        `${moments} moment(s), all sessions/credentials/identity`,
+    ],
+  );
+  say(`Forgotten. The confession is in audit.deletion_event.`);
+}
+
 try {
   await client.query("begin");
+
+  if (forgetStorykeeperId) {
+    say(
+      `${execute ? "EXECUTE" : "DRY RUN"} — the Keeper (forget), ${new Date().toISOString()}`,
+    );
+    await forget(forgetStorykeeperId);
+    if (execute) {
+      await client.query("commit");
+    } else {
+      await client.query("rollback");
+      say("Dry run complete — nothing was changed. Re-run with --execute to act.");
+    }
+    client.release();
+    await pool.end();
+    process.exit(0);
+  }
 
   // ---- 1. Unclaimed Books past the retention window --------------------
   const books = await client.query(

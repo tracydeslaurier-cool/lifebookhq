@@ -1,4 +1,4 @@
-import { readBook, recordAccess } from "@/lib/archive/reading";
+import { readStory, recordAccess } from "@/lib/archive/reading";
 import { companionProvider } from "@/lib/companion/engine";
 import { bookForSession, currentSession } from "@/lib/identity/session";
 import { NextResponse } from "next/server";
@@ -27,7 +27,7 @@ export async function GET() {
     purpose: "homecoming",
     scope: book.bookId,
   });
-  const record = await readBook(book.bookId);
+  const record = await readStory(session.storykeeperId);
   const composition = await companionProvider().compose({
     book: record,
     latest: null,

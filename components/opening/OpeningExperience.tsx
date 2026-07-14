@@ -86,6 +86,7 @@ export function OpeningExperience() {
   const hasInitializedSpeech = useRef(false);
   const companionSpokenRef = useRef(false);
   const inputRef = useRef<InvitationInputHandle>(null);
+  const beginRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     document.documentElement.lang = pack.locale;
@@ -201,6 +202,12 @@ export function OpeningExperience() {
       speakText(nextPack.strings.touchWordYouUnderstand, nextPack, () => {
         sessionStorage.setItem(ARRIVAL_SPOKEN_KEY, "1");
       });
+      // Continuity for keyboard travellers: choosing a language carries
+      // focus to Begin, so the next Enter continues the journey instead of
+      // stalling on a word that has already done its work.
+      requestAnimationFrame(() => {
+        beginRef.current?.focus();
+      });
     }
   }
 
@@ -249,6 +256,7 @@ export function OpeningExperience() {
             aria-hidden={isInvitation}
           >
             <button
+              ref={beginRef}
               type="button"
               onClick={handleBegin}
               className={[

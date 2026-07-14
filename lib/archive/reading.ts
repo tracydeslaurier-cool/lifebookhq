@@ -71,6 +71,40 @@ export async function readBook(bookId: string): Promise<BookTurn[]> {
   }));
 }
 
+/**
+ * The whole story of a recognized Storykeeper: every Moment and Companion
+ * Turn across ALL Books they have claimed. Ephemeral sessions may have
+ * scattered one life across several Books; the person is one, so the
+ * remembering is one (Decision 012: the account is not the Book).
+ */
+export async function readStory(storykeeperId: string): Promise<BookTurn[]> {
+  const result = await db().query(
+    `select t.speaker, t.text, t.at, t.conversation_id
+       from (
+         select 'storykeeper' as speaker, m.original_text as text,
+                m.submitted_at as at, m.conversation_id, m.seq
+           from entrusted.moment m
+           join entrusted.conversation c on c.id = m.conversation_id
+           join identity.book_claim bc on bc.book_id = c.book_id
+          where bc.storykeeper_id = $1
+         union all
+         select 'companion', ct.text, ct.spoken_at, ct.conversation_id, ct.seq
+           from entrusted.companion_turn ct
+           join entrusted.conversation c on c.id = ct.conversation_id
+           join identity.book_claim bc on bc.book_id = c.book_id
+          where bc.storykeeper_id = $1
+       ) t
+      order by t.at asc, t.seq asc`,
+    [storykeeperId],
+  );
+  return result.rows.map((row) => ({
+    speaker: row.speaker,
+    text: row.text,
+    at: row.at,
+    conversationId: row.conversation_id,
+  }));
+}
+
 export async function conversationBelongsToBook(
   conversationId: string,
   bookId: string,

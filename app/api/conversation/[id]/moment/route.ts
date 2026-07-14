@@ -2,6 +2,7 @@ import { entrustMoment, preserveCompanionTurn } from "@/lib/archive/archive";
 import {
   conversationBelongsToBook,
   readBook,
+  readStory,
   recordAccess,
 } from "@/lib/archive/reading";
 import { companionProvider } from "@/lib/companion/engine";
@@ -65,7 +66,11 @@ export async function POST(
     purpose: "conversation",
     scope: book.bookId,
   });
-  const record = await readBook(book.bookId);
+  // Recognized Storykeepers are remembered across all their claimed Books;
+  // anonymous conversations see only their own unclaimed Book.
+  const record = session.storykeeperId
+    ? await readStory(session.storykeeperId)
+    : await readBook(book.bookId);
   const composition = await companionProvider().compose({
     book: record,
     latest: text,
