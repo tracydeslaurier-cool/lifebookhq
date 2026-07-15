@@ -59,6 +59,7 @@ export function useFirstConversation(pack: VoicePack) {
   const [isReadyForReply, setIsReadyForReply] = useState(false);
 
   const shouldRestartListeningRef = useRef(false);
+  const replyWasRepaintedRef = useRef(false);
   const responseDelayTimerRef = useRef<number | null>(null);
   const draftSaveTimerRef = useRef<number | null>(null);
   const conversationIdRef = useRef<string | null>(null);
@@ -92,12 +93,28 @@ export function useFirstConversation(pack: VoicePack) {
           // (Minimal by design — a scrolling history is a scene-design
           // question the observation period still owns.)
           void getConversation(conversationId).then((turns) => {
-            const lastMoment = [...turns]
-              .reverse()
-              .find((turn) => turn.speaker === "storykeeper");
+            const lastMomentIndex = turns.map((t) => t.speaker).lastIndexOf("storykeeper");
+            const lastMoment = lastMomentIndex >= 0 ? turns[lastMomentIndex] : null;
             if (lastMoment) {
               setSubmittedThought((previous) => previous ?? lastMoment.text);
               setIsReadyForReply(true);
+              // Repaint the Companion's reply too — half a conversation
+              // repainted is not continuity (Director, 2026-07-17). Marked
+              // as repainted so it is shown, never re-spoken aloud.
+              const replyAfter = turns
+                .slice(lastMomentIndex + 1)
+                .find((turn) => turn.speaker === "companion");
+              if (replyAfter) {
+                replyWasRepaintedRef.current = true;
+                setCompanionReply((previous) =>
+                  previous ?? {
+                    opening: replyAfter.text,
+                    question: "",
+                    text: replyAfter.text,
+                  },
+                );
+                setShowCompanionResponse(true);
+              }
               // Self-healing for ghost drafts: a draft identical to the last
               // entrusted Moment is a leftover of the autosave race — clear
               // it everywhere rather than showing the Storykeeper a double.
@@ -220,6 +237,7 @@ export function useFirstConversation(pack: VoicePack) {
     ensureConversation()
       .then((id) => entrustMoment(id, trimmed, pack.id))
       .then((reply) => {
+        replyWasRepaintedRef.current = false; // a live reply follows
         clearDraftText();
         // Belt and suspenders: erase any server-side draft of the words that
         // just became a Moment, in case an autosave slipped through.
@@ -281,6 +299,7 @@ export function useFirstConversation(pack: VoicePack) {
   }, []);
 
   return {
+    replyWasRepaintedRef,
     transcript,
     inputMode,
     isListening,

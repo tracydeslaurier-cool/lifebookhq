@@ -148,6 +148,14 @@ export function OpeningExperience() {
       return;
     }
 
+    // A repainted reply is a memory of what was already said — shown,
+    // never re-spoken aloud at the Storykeeper on arrival. (Checked before
+    // consuming the spoken-guard, so a later LIVE reply still gets a voice.)
+    if (conversation.replyWasRepaintedRef.current) {
+      activateReplyInput();
+      return;
+    }
+
     companionSpokenRef.current = true;
 
     speakText(companionReply.text, pack, () => {
@@ -156,7 +164,7 @@ export function OpeningExperience() {
         inputRef.current?.focus();
       });
     });
-  }, [activateReplyInput, companionReply, pack, showCompanionResponse]);
+  }, [activateReplyInput, companionReply, conversation.replyWasRepaintedRef, pack, showCompanionResponse]);
 
   useEffect(() => {
     if (!isClientReady || !isInvitation || !isInputActive) {
