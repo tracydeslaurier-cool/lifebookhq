@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# story exports — a Storykeeper's whole story in plaintext; never commit
+lifebook-export-*
+
 # vercel
 .vercel
 
