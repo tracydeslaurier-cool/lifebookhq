@@ -160,6 +160,21 @@ export const InvitationInput = forwardRef<
               : "placeholder:opacity-0",
           ].join(" ")}
         />
+        {value.trim().length > 0 ? (
+          <button
+            type="button"
+            onClick={onSubmit}
+            className={[
+              "absolute -bottom-12 right-0 font-sans text-sm font-extralight tracking-[0.14em]",
+              "text-[var(--lb-fg-soft)] opacity-70 transition-opacity duration-500",
+              "hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--lb-fg-soft)]",
+            ].join(" ")}
+          >
+            {/* TODO(language-engine): culturally authored per pack; Director's
+                control language from the layered-completion decision. */}
+            Keep this
+          </button>
+        ) : null}
         {mounted && speechSupported ? (
           <button
             type="button"

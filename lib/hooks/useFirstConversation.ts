@@ -5,6 +5,7 @@ import type { CompanionReply } from "@/lib/companion/types";
 import {
   beginConversation,
   entrustMoment,
+  getConversation,
   saveDraft,
 } from "@/lib/client/api";
 import {
@@ -86,6 +87,19 @@ export function useFirstConversation(pack: VoicePack) {
             storeDraftText(draft);
             setLiveTranscript(draft);
           }
+          // Returning must never LOOK like scratch: repaint the last entrusted
+          // thought so the Storykeeper sees where the conversation left off.
+          // (Minimal by design — a scrolling history is a scene-design
+          // question the observation period still owns.)
+          void getConversation(conversationId).then((turns) => {
+            const lastMoment = [...turns]
+              .reverse()
+              .find((turn) => turn.speaker === "storykeeper");
+            if (lastMoment) {
+              setSubmittedThought((previous) => previous ?? lastMoment.text);
+              setIsReadyForReply(true);
+            }
+          });
           return conversationId;
         },
       );

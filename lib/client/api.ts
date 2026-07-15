@@ -53,6 +53,25 @@ export async function entrustMoment(
   return { text: result.companion.text };
 }
 
+export type ConversationTurn = {
+  speaker: "storykeeper" | "companion";
+  text: string;
+  at: string;
+};
+
+export async function getConversation(
+  conversationId: string,
+): Promise<ConversationTurn[]> {
+  try {
+    const result = await json<{ turns: ConversationTurn[] }>(
+      await fetch(`/api/conversation/${conversationId}`),
+    );
+    return result.turns ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function saveDraft(
   conversationId: string,
   text: string,
