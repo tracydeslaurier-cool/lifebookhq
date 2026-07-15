@@ -45,3 +45,20 @@ body {
 .lb-invitation-input::placeholder {
   transition: opacity 700ms ease;
 }
+
+/* Scrollbars should whisper: thin, dark, present only when needed. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(242, 236, 228, 0.16) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(242, 236, 228, 0.16);
+  border-radius: 3px;
+}
