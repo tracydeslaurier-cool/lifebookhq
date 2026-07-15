@@ -98,6 +98,15 @@ export function useFirstConversation(pack: VoicePack) {
             if (lastMoment) {
               setSubmittedThought((previous) => previous ?? lastMoment.text);
               setIsReadyForReply(true);
+              // Self-healing for ghost drafts: a draft identical to the last
+              // entrusted Moment is a leftover of the autosave race — clear
+              // it everywhere rather than showing the Storykeeper a double.
+              const draftNow = readStoredDraftText();
+              if (draftNow && draftNow.trim() === lastMoment.text.trim()) {
+                clearDraftText();
+                setLiveTranscript("");
+                void saveDraft(conversationId, "");
+              }
             }
           });
           return conversationId;
@@ -128,6 +137,12 @@ export function useFirstConversation(pack: VoicePack) {
       }
       draftSaveTimerRef.current = window.setTimeout(() => {
         draftSaveTimerRef.current = null;
+        // A submission in flight means these words are becoming a Moment;
+        // saving them as a draft now would create a ghost (the "double
+        // reply" defect, 2026-07-17).
+        if (isSubmittingRef.current) {
+          return;
+        }
         ensureConversation()
           .then((id) => saveDraft(id, value))
           .catch(() => {
@@ -191,6 +206,12 @@ export function useFirstConversation(pack: VoicePack) {
     setVoicePrefix("");
     storeVoicePackId(pack.id);
 
+    // Disarm any pending autosave: these words are being entrusted, not drafted.
+    if (draftSaveTimerRef.current !== null) {
+      window.clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
+
     isSubmittingRef.current = true;
     setSubmittedThought(trimmed);
     setLiveTranscript("");
@@ -200,6 +221,11 @@ export function useFirstConversation(pack: VoicePack) {
       .then((id) => entrustMoment(id, trimmed, pack.id))
       .then((reply) => {
         clearDraftText();
+        // Belt and suspenders: erase any server-side draft of the words that
+        // just became a Moment, in case an autosave slipped through.
+        if (conversationIdRef.current) {
+          void saveDraft(conversationIdRef.current, "");
+        }
         setCompanionReply({ opening: reply.text, question: "", text: reply.text });
 
         if (responseDelayTimerRef.current !== null) {
