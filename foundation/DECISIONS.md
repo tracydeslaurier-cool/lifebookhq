@@ -262,8 +262,16 @@ Trust cannot be simulated. The behaviours we expect from the Companion must firs
 
 *(Ratified by the Director, 2026-07-12.)*
 
-Decision 017 — Supplier Independence
+---
 
-LifeBook shall remain strategically independent of any individual technology supplier. Providers may be evaluated, adopted, and replaced without changing the entrusted plane, the Companion’s identity, or the Storykeeper’s experience. Supplier relationships are periodically re-evaluated through a standing Companion audition process.
+## Decision 021
 
-That one decision would capture almost everything we’ve discussed today.
+**The relationship must survive the voice.**
+
+Memory may never depend on the availability of intelligence. The entrusted plane preserves whether or not the Companion can speak; when the voice fails, the relationship waits; when the voice returns, the relationship resumes — with nothing lost and nothing invented in the gap.
+
+Reason:
+
+Proven under real failure, not asserted: on staging's first day, its first entrusted Moment was preserved while the Companion's voice was broken (an invalid provider key). The next day, the Companion remembered it. Had the Companion forgotten, the architecture would have failed constitutionally — instead, the voice failed while the relationship waited. Voices are supplied (Decision 017); the relationship is LifeBook. Any future change that couples remembering to any provider's uptime violates this decision.
+
+*(Drafted by Claude from the Director's elevation of observation #44; approved in principle by the Director, 2026-07-17.)*
