@@ -271,13 +271,17 @@ export function OpeningExperience() {
 
           <div
             className={[
-              "absolute inset-0 flex flex-col items-center justify-center text-center",
+              // overflow-y-auto + m-auto child: centred when short, scrollable
+              // when a long reply would otherwise push the input off a phone
+              // screen (defect: unreachable cursor, 2026-07-17).
+              "absolute inset-0 flex flex-col items-center overflow-y-auto text-center",
               isInvitation
                 ? "z-10 translate-y-0 opacity-100"
                 : "pointer-events-none z-0 translate-y-4 opacity-0",
             ].join(" ")}
             aria-hidden={!isInvitation}
           >
+            <div className="m-auto flex w-full flex-col items-center py-6">
             <h1 className="font-sans text-2xl font-extralight leading-relaxed tracking-[0.06em] text-[var(--lb-fg-soft)] sm:text-3xl md:text-4xl">
               {pack.strings.whatsOnYourMind}
             </h1>
@@ -322,6 +326,7 @@ export function OpeningExperience() {
             showCompanionResponse ? (
               <StoryInvitation pack={pack} />
             ) : null}
+            </div>
           </div>
         </div>
       </main>
