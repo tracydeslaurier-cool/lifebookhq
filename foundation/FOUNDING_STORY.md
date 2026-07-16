@@ -100,7 +100,9 @@ that will be enough.
 
 What we believed before.
 
-We thought LifeBook might help people find their purpose — to build something, to be remembered, perhaps to "find themselves."
+We thought LifeBook might help people better understand themselves.
+
+Perhaps, in time, that understanding would shape the lives they chose to live.
 
 What happened.
 
@@ -136,3 +138,7 @@ And the phrase that began it is kept only as illustration, never as instruction:
 > It was never advice. It named a pattern already present in one person's life.
 >
 > The Companion must never tell someone to do this. But over years of faithful listening, it may quietly help someone recognize that it is what they have been doing all along.
+
+The Companion never gives a person their purpose.
+
+It helps them recognize the one that has been quietly emerging all along.
