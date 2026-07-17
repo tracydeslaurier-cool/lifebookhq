@@ -1,16 +1,28 @@
 # PRESENCE.md
 
-*The experience LifeBook is trying to create — and the standard by which we judge whether we have.*
+*What LifeBook is really trying to create — and the standard by which we know whether we have.*
 
-## Why this document is not called "Voice"
+## Presence
 
-We are not building a voice feature. We are building **presence**.
+Presence is the experience of feeling that someone is genuinely with you.
 
-Voice is simply today's expression of presence — the first place where presence succeeds or fails. If, one day, another interface surpasses voice, the microphone may disappear entirely. This standard should survive unchanged.
+Not because the technology is impressive — but because it has become almost invisible.
 
-So this document describes the *experience* we are trying to create, never the *technology* used to create it. Name the thing that endures, not the thing that will be replaced.
+Everything LifeBook builds — conversation, memory, recognition, stewardship — exists only in service of that one experience.
 
-> Presence is the experience. Voice is where presence first succeeds or fails.
+## Presence is the "how"
+
+Presence is not another capability alongside the others. It is *how the others are experienced.*
+
+The relationship is what exists between the Storykeeper and the Companion. Memory is what endures. Recognition is what emerges. Stewardship is how a life is protected. Those are the *what*, the *why*, and the *how-it-is-kept-safe*.
+
+Presence is the *how-it-is-experienced*.
+
+A Storykeeper never experiences Contextus — they experience someone being present. They never experience Acceptus — they experience someone understanding. Presence is the bridge between the architecture and the relationship: the dimension along which every capability reaches a human being.
+
+Which is why presence is not a feature, and not a competitive advantage.
+
+**Presence is the promise.**
 
 ---
 
@@ -21,7 +33,7 @@ The Storykeeper remembers the relationship, never the interface.
 The interface disappears into the conversation.
 The conversation disappears into the relationship.
 
-When the standard is met, no one thinks about *how* they are speaking to LifeBook — only about *who* they are speaking with, and what they are remembering together.
+When the standard is met, no one thinks about *how* they are reaching LifeBook — only about *who* they are with, and what they are remembering together.
 
 ---
 
@@ -81,8 +93,22 @@ The encouraging shape of this list: most of the relationship is *already standin
 
 ---
 
+## Why this standard is not named for its technology
+
+Voice is today's expression of presence — the first place where presence succeeds or fails. If, one day, another interface surpasses voice, the microphone may disappear entirely. This standard should survive unchanged.
+
+So the document is named for the experience, never the technology that carries it today:
+
+> **Name the thing that endures, not the thing that will be replaced.**
+
+(A naming discipline in its own right — obs #72 — and another expression of #67: when we name something, we name the enduring reality, never today's implementation.)
+
+---
+
 ## Provenance & status of this standard
 
-Grounded in early testing (n=2: Iryna, Deep — obs #68), refined by the Director (#70) and the "rhythm over words" finding (#69). It re-derives the Invisible Rule / Motorcycle Principle (#7), "the technology disappears, the humanity remains" (#11), and "LifeBook sings, it doesn't talk" (#10) — presence over articulation — now aimed at the threshold where they are tested hardest.
+This standard did not originate from design intent. **It emerged from widening.** Storykeepers who had never seen the Foundation instinctively reached for conversation, revealing expectations the founders themselves did not share (obs #68 — Iryna, Deep). PRESENCE.md was not imagined. It was *discovered*.
 
-This is the **working acceptance bar** for the Presence work, and a **candidate for the Constitution** once the pattern confirms across the widening (Olya and beyond). Held, not yet legislated — per the Foundation's discipline of discovering before we legislate.
+It re-derives the Invisible Rule / Motorcycle Principle (#7), "the technology disappears, the humanity remains" (#11), and "LifeBook sings, it doesn't talk" (#10) — presence over articulation — now aimed at the threshold where they are tested hardest, and refined by the Director (#70, #71) and the "rhythm over words" finding (#69).
+
+Grounded in early testing (n=2). This is the **working acceptance bar** for the Presence work and a **candidate for the Constitution** once the pattern confirms across the widening (Olya and beyond). Held, not yet legislated — per the Foundation's discipline of discovering before we legislate.
