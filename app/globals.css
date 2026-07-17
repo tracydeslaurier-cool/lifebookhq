@@ -62,3 +62,38 @@ body {
   background: rgba(242, 236, 228, 0.16);
   border-radius: 3px;
 }
+
+/* Threshold experiment — Variant B: a slow breathing presence,
+   "I'm here whenever you're ready." (Honours prefers-reduced-motion above.) */
+@keyframes lb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.85;
+  }
+}
+.lb-breathe {
+  animation: lb-breathe 6s ease-in-out infinite;
+}
+
+/* Threshold experiment — the globe: words drift gently, never out of reach. */
+@keyframes lb-globe-drift {
+  0% {
+    transform: translateY(6px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+  100% {
+    transform: translateY(6px);
+  }
+}
+.lb-globe-word {
+  animation-name: lb-globe-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
