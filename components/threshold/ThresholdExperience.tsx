@@ -218,6 +218,16 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
     handleMicToggle();
   }, [handleMicToggle, markFirstInteraction]);
 
+  const onSubmit = useCallback(() => {
+    const chars = transcript.trim().length;
+    if (chars > 0) {
+      // The act of entrustment itself — thought → trust → entrustment.
+      // Observed, never altered yet. Content-free: a count, never the words.
+      emitEvent(variant, "kept_this", { inputMode, chars, elapsedMs: elapsed() });
+    }
+    handleSubmit();
+  }, [transcript, inputMode, handleSubmit, variant, elapsed]);
+
   const onVoiceUnsupported = useCallback(() => {
     markFirstInteraction("voice");
     setVoiceNote(true);
@@ -312,7 +322,7 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
               voicePrefix={voicePrefix}
               isListening={isListening}
               onValueChange={onValueChange}
-              onSubmit={handleSubmit}
+              onSubmit={onSubmit}
               onMicToggle={onMic}
               onListeningEnd={handleListeningEnd}
               onVoiceUnsupported={onVoiceUnsupported}
