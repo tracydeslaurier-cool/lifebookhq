@@ -1,6 +1,6 @@
 "use client";
 
-import { getAllVoicePacks } from "@/lib/voice-packs";
+import { getReviewedVoicePacks } from "@/lib/voice-packs";
 import type { VoicePackId } from "@/lib/voice-packs/types";
 import { useEffect } from "react";
 
@@ -34,7 +34,11 @@ const PHRASES: Phrase[] = [
   { text: "話しましょう" },
 ];
 
-const supported = new Set<VoicePackId>(getAllVoicePacks().map((pack) => pack.id));
+// Only review-quality languages are offered as choices. The rest of the world
+// still belongs here — shown, never disabled — with an honest "more coming".
+const supported = new Set<VoicePackId>(
+  getReviewedVoicePacks().map((pack) => pack.id),
+);
 
 type GlobeOverlayProps = {
   open: boolean;
@@ -92,12 +96,16 @@ export function GlobeOverlay({ open, onClose, onSelect }: GlobeOverlayProps) {
             key={phrase.text}
             aria-hidden="true"
             style={style}
-            className="lb-globe-word pointer-events-none select-none font-serif text-2xl font-light tracking-[0.06em] text-[var(--lb-fg-muted)] opacity-35 sm:text-3xl"
+            className="lb-globe-word pointer-events-none select-none font-serif text-2xl font-light tracking-[0.06em] text-[var(--lb-fg-muted)] opacity-50 sm:text-3xl"
           >
             {phrase.text}
           </span>
         );
       })}
+
+      <p className="pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2 text-center font-sans text-xs font-extralight tracking-[0.12em] text-[var(--lb-fg-muted)] opacity-60">
+        More languages are coming.
+      </p>
     </div>
   );
 }

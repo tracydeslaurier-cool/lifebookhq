@@ -70,7 +70,8 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
   const inputModeEmittedRef = useRef(false);
   const entrustCountRef = useRef(0);
   const lastSubmittedRef = useRef<string | null>(null);
-  const companionSpokenRef = useRef(false);
+  const lastSpokenReplyRef = useRef<string | null>(null);
+  const usedVoiceRef = useRef(false);
 
   const elapsed = useCallback(
     () => Math.round(performance.now() - arrivalAtRef.current),
@@ -88,7 +89,13 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
     emitEvent(variant, "arrival", {});
     emitEvent(variant, "language_detected", { pack: detected });
 
-    void beginArrival().catch(() => {});
+    // A true first arrival: mint a fresh anonymous session so the experiment
+    // never lands in an existing Storykeeper's conversation, then open the
+    // (empty) conversation.
+    void fetch("/api/experiment/reset", { method: "POST" })
+      .catch(() => {})
+      .then(() => beginArrival())
+      .catch(() => {});
 
     let stop: (() => void) | undefined;
     void startMaskedRecording(variant).then((s) => {
@@ -148,15 +155,27 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
     }
   }, [submittedThought, replyWasRepaintedRef, variant, elapsed]);
 
-  // Speak the Companion's live reply (never a repainted memory).
+  // Speak each live reply, then naturally continue listening if the
+  // Storykeeper has been speaking — listen → respond → listen, no second tap.
+  // Repainted memories are shown, never spoken.
   useEffect(() => {
-    if (!showCompanionResponse || !companionReply || companionSpokenRef.current) {
-      return;
-    }
+    if (!showCompanionResponse || !companionReply) return;
     if (replyWasRepaintedRef.current) return;
-    companionSpokenRef.current = true;
-    speakText(companionReply.text, pack);
-  }, [showCompanionResponse, companionReply, replyWasRepaintedRef, pack]);
+    if (companionReply.text === lastSpokenReplyRef.current) return;
+    lastSpokenReplyRef.current = companionReply.text;
+    speakText(companionReply.text, pack, () => {
+      if (usedVoiceRef.current && !isListening) {
+        handleMicToggle();
+      }
+    });
+  }, [
+    showCompanionResponse,
+    companionReply,
+    replyWasRepaintedRef,
+    pack,
+    isListening,
+    handleMicToggle,
+  ]);
 
   const onValueChange = useCallback(
     (value: string) => {
@@ -167,6 +186,7 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
   );
 
   const onMic = useCallback(() => {
+    usedVoiceRef.current = true;
     markFirstInteraction("voice");
     handleMicToggle();
   }, [handleMicToggle, markFirstInteraction]);
