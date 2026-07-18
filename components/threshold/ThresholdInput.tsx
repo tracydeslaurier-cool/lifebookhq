@@ -3,6 +3,7 @@
 import {
   isSpeechRecognitionSupported,
   startSpeechRecognition,
+  type SpeechLifecycle,
 } from "@/lib/speech";
 import type { VoicePack } from "@/lib/voice-packs/types";
 import { useEffect, useRef, useState } from "react";
@@ -26,6 +27,7 @@ type ThresholdInputProps = {
   onMicToggle: () => void;
   onListeningEnd: () => void;
   onVoiceUnsupported: () => void;
+  voiceLifecycle?: SpeechLifecycle;
 };
 
 export function ThresholdInput({
@@ -38,6 +40,7 @@ export function ThresholdInput({
   onMicToggle,
   onListeningEnd,
   onVoiceUnsupported,
+  voiceLifecycle,
 }: ThresholdInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<ReturnType<typeof startSpeechRecognition> | null>(
@@ -65,6 +68,7 @@ export function ThresholdInput({
       (result) => onValueChange(result.transcript),
       () => onListeningEnd(),
       voicePrefix,
+      voiceLifecycle,
     );
     recognitionRef.current = session;
 
@@ -72,7 +76,15 @@ export function ThresholdInput({
       session?.stop();
       recognitionRef.current = null;
     };
-  }, [isListening, supported, onListeningEnd, onValueChange, pack, voicePrefix]);
+  }, [
+    isListening,
+    supported,
+    onListeningEnd,
+    onValueChange,
+    pack,
+    voicePrefix,
+    voiceLifecycle,
+  ]);
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey) return;

@@ -12,10 +12,10 @@ import {
 } from "@/lib/experiment/client";
 import { useFirstConversation } from "@/lib/hooks/useFirstConversation";
 import { detectBrowserVoicePack, storeVoicePackId } from "@/lib/language";
-import { cancelSpeech, speakText } from "@/lib/speech";
+import { cancelSpeech, speakText, type SpeechLifecycle } from "@/lib/speech";
 import { getVoicePack } from "@/lib/voice-packs";
 import type { VoicePackId } from "@/lib/voice-packs/types";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * The Threshold — a discovery experiment. Three variants share this brain and
@@ -76,6 +76,27 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
   const elapsed = useCallback(
     () => Math.round(performance.now() - arrivalAtRef.current),
     [],
+  );
+
+  // Discovery-only voice telemetry: where the voice experience breaks, so a
+  // Presence problem can be told apart from a browser/platform limitation.
+  const voiceLifecycle = useMemo<SpeechLifecycle>(
+    () => ({
+      onStart: () => emitEvent(variant, "voice_started", { elapsedMs: elapsed() }),
+      onRecognitionEnd: () =>
+        emitEvent(variant, "recognition_ended", { elapsedMs: elapsed() }),
+      onAutoRestart: () =>
+        emitEvent(variant, "automatic_restart", { elapsedMs: elapsed() }),
+      onStop: (durationMs) =>
+        emitEvent(variant, "user_stopped", { durationMs, elapsedMs: elapsed() }),
+      onError: (error, durationMs) =>
+        emitEvent(variant, "voice_error", {
+          error: error ?? "unknown",
+          durationMs,
+          elapsedMs: elapsed(),
+        }),
+    }),
+    [variant, elapsed],
   );
 
   // Arrival: detect language, open the conversation, begin masked recording.
@@ -289,6 +310,7 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
               onMicToggle={onMic}
               onListeningEnd={handleListeningEnd}
               onVoiceUnsupported={onVoiceUnsupported}
+              voiceLifecycle={voiceLifecycle}
             />
           ) : null}
 

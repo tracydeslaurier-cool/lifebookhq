@@ -171,11 +171,21 @@ export type SpeechRecognitionSession = {
   stop: () => void;
 };
 
+/** Discovery-only voice lifecycle hooks — never surfaced to the Storykeeper. */
+export type SpeechLifecycle = {
+  onStart?: () => void;
+  onRecognitionEnd?: () => void;
+  onAutoRestart?: () => void;
+  onStop?: (durationMs: number) => void;
+  onError?: (error: string | undefined, durationMs: number) => void;
+};
+
 export function startSpeechRecognition(
   pack: VoicePack,
   onResult: (result: SpeechRecognitionResult) => void,
   onError?: () => void,
   prefix = "",
+  lifecycle?: SpeechLifecycle,
 ): SpeechRecognitionSession | null {
   const Recognition = getSpeechRecognitionConstructor();
   if (!Recognition) {
@@ -185,6 +195,7 @@ export function startSpeechRecognition(
 
   let stopped = false; // set only by an intentional stop()
   let committed = ""; // finals accumulated ACROSS restarts
+  const sessionStart = Date.now();
   let recognition: SpeechRecognition | null = null;
   let restartTimer: number | null = null;
   let startedAt = 0;
@@ -226,6 +237,7 @@ export function startSpeechRecognition(
       // Permission / service refusal is fatal — stop and report.
       if (error === "not-allowed" || error === "service-not-allowed") {
         stopped = true;
+        lifecycle?.onError?.(error, Date.now() - sessionStart);
         onError?.();
         return;
       }
@@ -237,6 +249,7 @@ export function startSpeechRecognition(
     // To feel present, quietly restart so the Storykeeper never re-taps.
     rec.onend = () => {
       recognition = null;
+      lifecycle?.onRecognitionEnd?.();
       if (stopped) return;
       if (Date.now() - startedAt > 1200) {
         emptyEnds = 0; // that was a real listening window (even if silent)
@@ -245,9 +258,11 @@ export function startSpeechRecognition(
       }
       if (emptyEnds > 6) {
         stopped = true;
+        lifecycle?.onError?.("no-audio", Date.now() - sessionStart);
         onError?.(); // the environment can't actually listen — surface it
         return;
       }
+      lifecycle?.onAutoRestart?.();
       restartTimer = window.setTimeout(() => {
         restartTimer = null;
         if (!stopped) {
@@ -269,11 +284,14 @@ export function startSpeechRecognition(
     }
   };
 
+  lifecycle?.onStart?.();
   startOnce();
 
   return {
     stop: () => {
+      if (stopped) return;
       stopped = true;
+      lifecycle?.onStop?.(Date.now() - sessionStart);
       if (restartTimer !== null) {
         window.clearTimeout(restartTimer);
         restartTimer = null;
