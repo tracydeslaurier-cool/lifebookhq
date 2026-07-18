@@ -61,6 +61,7 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
     handleMicToggle,
     handleListeningEnd,
     handleLanguageChange,
+    activateReplyInput,
     beginArrival,
     replyWasRepaintedRef,
   } = conversation;
@@ -185,6 +186,10 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
     if (companionReply.text === lastSpokenReplyRef.current) return;
     lastSpokenReplyRef.current = companionReply.text;
     speakText(companionReply.text, pack, () => {
+      // The Companion has finished — it's the Storykeeper's turn again.
+      // Bring the input back, and if they've been speaking, resume listening
+      // so the conversation simply continues (no second tap).
+      activateReplyInput();
       if (usedVoiceRef.current && !isListening) {
         handleMicToggle();
       }
@@ -196,6 +201,7 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
     pack,
     isListening,
     handleMicToggle,
+    activateReplyInput,
   ]);
 
   const onValueChange = useCallback(
