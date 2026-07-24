@@ -45,7 +45,6 @@ EscalationPolicy is referenced by ApprovalPolicy, ConflictResolutionPolicy, and 
 | `agent_deprecated` | An active agent run was invalidated by agent deprecation |
 | `capacity_change_mid_action` | A capacity change occurred while an approval workflow was in progress |
 | `stewardship_gap` | Stewardship has ended with no succession record and no new steward assigned |
-| `atmosphere_safety_retreat` | The Memory Atmosphere Engine retreated to Level 0 (neutral) during an active session due to a safety constraint, high sensitivity risk, or unresolvable confidence failure — fires for steward notification only; does not freeze other actions |
 
 ### 1.3 EscalationStep structure (JSONB)
 
@@ -547,6 +546,36 @@ action_type values:
 4. Write an audit record for every timer event.
 
 Notification content must respect the access classification of the escalation. A notification about a restricted dispute must not include the restricted content. Notifications contain only: escalation reference number, action required, deadline, and a link to the steward interface.
+
+---
+
+## 7. Candidate Operational Safety Events — Deferred
+
+The following are candidate safety events identified during architecture sessions. They are **not** finalized `trigger_type` values and must not be added to the `EscalationPolicy.trigger_type` vocabulary or any enum until the relevant subsystem state machines are designed and approved.
+
+They are documented here for preservation. No schema object, migration, or enum value is created by this section.
+
+### 7.1 `atmosphere_safety_retreat` — Candidate
+
+**Source subsystem:** Memory Atmosphere Engine (see `MEMORY_ATMOSPHERE_ENGINE.md`)
+
+**Candidate behaviour (not finalized):**
+
+| Action | Description |
+|---|---|
+| Suppress new atmosphere generation | No new AtmosphereProfile is computed until conditions clear |
+| Freeze motion | All animation stops immediately |
+| Return toward neutral | Luminance and colour transition toward Level 0 through a controlled, safety-bounded fade (not an instantaneous cut — see MEMORY_ATMOSPHERE_ENGINE.md §6.4) |
+| Record the safety event | An AtmosphereAuditLog entry is written (deferred schema object) |
+| Escalate to human review | Only if a separately defined policy requires it — not automatic |
+
+**Why this is deferred:**  
+The EscalationRecord state machine has not yet been designed for the Memory Atmosphere Engine. It is not established whether an atmosphere retreat constitutes an escalation in the governance sense, a deterministic safety action, or a simple session event. Until the engine's operational model is designed, adding `atmosphere_safety_retreat` to the finalized trigger_type vocabulary would create schema drift with completed migrations and undefined semantics.
+
+**Design dependencies before finalization:**
+- Memory Atmosphere Engine implementation review
+- Decision on whether atmosphere retreats are auditable session events, escalations, or both
+- AtmosphereAuditLog schema design (currently deferred — see MEMORY_ATMOSPHERE_ENGINE.md §11)
 
 ---
 

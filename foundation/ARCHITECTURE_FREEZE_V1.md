@@ -108,8 +108,20 @@ ApprovalPolicy defines governance rules. ApprovalRecord proves those rules were 
 **P13 — LifeBook.primary_jurisdiction_id is NOT NULL**
 A LifeBook without a jurisdiction is a governance object whose rules cannot be resolved — age-of-majority, erasure policy, data residency, authority succession, and deployment eligibility all depend on it. `primary_jurisdiction_id` must be NOT NULL. The migration dependency is resolved by placing Jurisdiction (and its minimum seed records) before LifeBook in the migration sequence, not by making the FK nullable.
 
-**P14 — Atmosphere is subordinate to cognition** *(proposed 2026-07-24 — pending formal freeze session)*  
-The Memory Atmosphere Engine may only create conditions that support authentic memory. It may never tell the participant what to remember. It may not direct, bias, dramatize, or substitute for recollection. Any feature, output, or configuration that produces imagery or sensory cues derived solely from conversational keyword extraction — without topic stability, confidence gating, and sensitivity evaluation — violates this principle. This constraint applies regardless of technical feasibility or apparent user benefit. See ADR-0002 and MEMORY_ATMOSPHERE_ENGINE.md.
+---
+
+## 3a. Candidate Principles — Pending Discovery Partner Approval
+
+The following proposed principles have been drafted and documented but are **not yet part of the frozen set**. They may not be cited as architectural constraints until ratified in a formal Discovery Partner revision session producing a new ARCHITECTURE_FREEZE document version.
+
+**Candidate Principle P14 — Atmosphere is subordinate to cognition**  
+*Proposed: 2026-07-24 — Status: Pending Discovery Partner approval — See ADR-0002*
+
+Proposed wording:
+
+> The Memory Atmosphere Engine may only create conditions that support authentic memory. It may never tell the participant what to remember. It may not direct, bias, dramatize, or substitute for recollection. Any feature, output, or configuration that produces imagery or sensory cues derived solely from conversational keyword extraction — without topic stability, confidence gating, and sensitivity evaluation — violates this principle. This constraint applies regardless of technical feasibility or apparent user benefit.
+
+This principle will move to §3 and be assigned a permanent number upon formal Discovery Partner ratification.
 
 ---
 

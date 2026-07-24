@@ -261,7 +261,8 @@ These are **hard constraints**, not optional styling guidance. No atmosphere con
 ### 6.2 OS and browser signals
 
 - `prefers-reduced-motion` OS/browser signal: must be respected as a hard constraint; overrides all atmosphere settings except Level 0
-- When `prefers-reduced-motion` is active: `motion_level = none`, `transition_speed = instant`, `atmosphere_level` capped at 1
+- When `prefers-reduced-motion` is active: `motion_level = none`, `atmosphere_level` capped at 1
+- Note: `prefers-reduced-motion` removes animation but does **not** authorize abrupt luminance changes. Even in reduced-motion mode, transitions between luminance states must remain within the safety-bounded fade range defined in §6.4.
 
 ### 6.3 Participant-selectable modes
 
@@ -277,7 +278,7 @@ Default for users with unknown accessibility needs: **`still`**.
 
 ### 6.4 Retreat trigger
 
-When **any** of the following conditions is true, the engine must immediately return the atmosphere profile to Level 0 and set `neutral_fallback_active = true`:
+When **any** of the following conditions is true, the engine must initiate a safety retreat and set `neutral_fallback_active = true`:
 
 - `sensitivity_risk = high` or `trauma`
 - `topic_stability_score` below minimum threshold
@@ -286,7 +287,22 @@ When **any** of the following conditions is true, the engine must immediately re
 - `atmosphere_profile = off`
 - `prefers-reduced-motion` with current motion_level > none
 
-The retreat is immediate. The engine does not transition through intermediate levels when retreating for safety — it goes directly to Level 0.
+**The decision to retreat is immediate. The visual transition is safety-bounded.**
+
+This distinction matters because a hard cut to neutral — particularly from a bright or warm atmosphere state — may itself constitute a rapid luminance change, violating §6.1. The two requirements are reconciled as follows:
+
+| Retreat action | Timing |
+|---|---|
+| Stop all motion | Immediate — no new frames rendered |
+| Prevent new representational imagery | Immediate — no new material introduced |
+| Remove semantic detail where possible | Immediate — content specificity reduced without visual event |
+| Luminance and colour return toward neutral | Controlled fade: approximately 800–1,500 ms, subject to accessibility testing |
+| Bright-to-black hard cut | **Prohibited** — falls under no-rapid-luminance-change rule regardless of retreat urgency |
+| Reduced-motion mode | Removes animation, but must not cause abrupt luminance changes; fade duration may be compressed but not eliminated |
+
+The retreat does not pass through intermediate atmosphere levels. Specificity is removed immediately and held at Level 0. The visual presentation reaches Level 0 appearance through the safety-bounded fade rather than an instantaneous jump.
+
+Once retreat is active, no new AtmosphereProfile above Level 0 is computed until all retreat conditions have cleared and a full inertia cycle has elapsed.
 
 ---
 
@@ -295,10 +311,11 @@ The retreat is immediate. The engine does not transition through intermediate le
 When `sensitivity_risk = trauma`, the engine:
 
 1. Immediately sets `neutral_fallback_active = true`
-2. Returns Level 0 regardless of topic stability or confidence
-3. Sets `motion_level = none`
-4. Sets `transition_speed = instant` (to reach Level 0 without visual event)
-5. Does not attempt any atmosphere recovery until the sensitivity signal clears and a full inertia cycle has elapsed
+2. Targets Level 0 regardless of topic stability or confidence
+3. Sets `motion_level = none` — all animation stops immediately
+4. Initiates the safety-bounded luminance fade defined in §6.4 — a hard cut to black is prohibited even under trauma conditions
+5. Removes semantic specificity immediately (no new representational imagery; existing imagery held at zero opacity or removed)
+6. Does not attempt any atmosphere recovery until the sensitivity signal clears and a full inertia cycle has elapsed
 
 **Explicit prohibition:** The engine must never generate, display, or suggest literal or evocative reconstruction of traumatic events.
 
@@ -420,7 +437,7 @@ The following questions are unresolved and require Discovery Partner review befo
 
 7. **Third-party consent at Level 4:** If an authenticated photograph shows persons other than the participant, what consent model applies? This intersects with `third_party_material` classification and requires explicit policy before Level 4 is enabled.
 
-8. **Retreat animation:** Is an instant jump to Level 0 visually safe in all contexts, or does a very rapid fade serve accessibility better? The hard constraint is no rapid luminance changes — a fast fade to black may violate this. Implementation must resolve the retreat transition against the no-rapid-luminance rule.
+8. **Retreat transition timing:** ~~Is an instant jump to Level 0 visually safe?~~ **Resolved in §6.4.** The retreat transition model is now specified: the decision is immediate, the visual transition is safety-bounded (approximately 800–1,500 ms fade; no hard luminance cut). The remaining open question is the precise timing range, which requires accessibility testing against WCAG photosensitivity guidance before the first implementation. The 800–1,500 ms range is an initial estimate, not a finalized constraint.
 
 ---
 

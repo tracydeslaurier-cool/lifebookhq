@@ -194,8 +194,10 @@ Every agent that may invoke the Context Broker must be registered. An unregister
 
 `culturally_governed_processing` is not assigned to any launch agent. It requires explicit registration of a purpose-specific agent per engagement.
 
-**Deferred agent registration — Memory Atmosphere Engine (2026-07-24):**  
-A `memory_atmosphere_agent` entry is required when the Memory Atmosphere Engine is implemented. It will operate under the `respectful_generation` Context Profile with a narrowed `max_data_categories` constraint excluding all content with `access_classification = restricted` or `culturally_governed`. The engine receives settled context, topic signals, and artifact permissions as read-only inputs via the broker; it produces `AtmosphereProfile` outputs only. No sensitive material enters the engine's context. Registration is deferred pending implementation. See `MEMORY_ATMOSPHERE_ENGINE.md` and `ADR-0002`.
+**Deferred registration — Memory Atmosphere Engine (2026-07-24):**  
+A `memory_atmosphere_policy_evaluator` entry is required in this registry when the Memory Atmosphere Engine is implemented. The name reflects its function: it evaluates governed policy inputs to produce an atmosphere profile. It does not retrieve material, authenticate evidence, establish facts, or choose imagery independently.
+
+It will operate under the `respectful_generation` Context Profile with a narrowed `max_data_categories` constraint excluding all content with `access_classification = restricted` or `culturally_governed`. The evaluator receives settled context, topic signals, and artifact permissions as read-only inputs via the broker; it produces `AtmosphereProfile` outputs only. No sensitive material enters its context. Registration is deferred pending implementation. See `MEMORY_ATMOSPHERE_ENGINE.md` and `ADR-0002`.
 
 ---
 
