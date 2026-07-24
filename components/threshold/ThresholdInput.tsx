@@ -17,6 +17,14 @@ import { useEffect, useRef, useState } from "react";
  * Storykeeper toward the keyboard before they choose.
  */
 
+/**
+ * Silence after the most recent final speech result that triggers automatic
+ * turn completion. Two seconds is a natural conversational pause on macOS;
+ * tune upward if testers find premature submission, downward if the
+ * conversation feels sluggish.
+ */
+const SILENCE_THRESHOLD_MS = 2000;
+
 type ThresholdInputProps = {
   pack: VoicePack;
   value: string;
@@ -27,6 +35,14 @@ type ThresholdInputProps = {
    *  voice results do NOT trigger the stop-listening side-effect that
    *  onValueChange (→ handleTranscriptChange) carries for keyboard input. */
   onVoiceResult: (value: string) => void;
+  /**
+   * Called when the silence timer fires after a final speech result and the
+   * Storykeeper has not resumed speaking. The parent is responsible for
+   * submitting the transcript exactly once. This is separate from onSubmit so
+   * the parent can apply its own duplicate guard independently of the button
+   * path.
+   */
+  onAutoSubmit: () => void;
   onSubmit: () => void;
   onMicToggle: () => void;
   onListeningEnd: () => void;
@@ -41,6 +57,7 @@ export function ThresholdInput({
   isListening,
   onValueChange,
   onVoiceResult,
+  onAutoSubmit,
   onSubmit,
   onMicToggle,
   onListeningEnd,
@@ -51,6 +68,30 @@ export function ThresholdInput({
   const recognitionRef = useRef<ReturnType<typeof startSpeechRecognition> | null>(
     null,
   );
+  const silenceTimerRef = useRef<number | null>(null);
+
+  /**
+   * Duplicate-submit guard at the ThresholdInput level. Set to true when the
+   * silence timer fires; reset to false when a new listening session begins
+   * (isListening transitions to true). Prevents a racing onend + timer from
+   * calling onAutoSubmit twice before the parent's state update propagates.
+   */
+  const hasAutoSubmittedRef = useRef(false);
+
+  /**
+   * Callback refs — hold the latest version of each callback without
+   * including them in the recognition useEffect deps. This prevents the
+   * recognition session from being torn down and restarted whenever the
+   * parent's memoized callbacks change reference (e.g. on every transcript
+   * update, which would cause isSubmitting state flicker).
+   */
+  const onVoiceResultRef = useRef(onVoiceResult);
+  const onListeningEndRef = useRef(onListeningEnd);
+  const onAutoSubmitRef = useRef(onAutoSubmit);
+  useEffect(() => { onVoiceResultRef.current = onVoiceResult; }, [onVoiceResult]);
+  useEffect(() => { onListeningEndRef.current = onListeningEnd; }, [onListeningEnd]);
+  useEffect(() => { onAutoSubmitRef.current = onAutoSubmit; }, [onAutoSubmit]);
+
   const [mounted, setMounted] = useState(false);
   const [supported, setSupported] = useState(false);
 
@@ -62,33 +103,80 @@ export function ThresholdInput({
   }, []);
 
   useEffect(() => {
+    // Clear any pending silence timer whenever the listening state changes.
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
     if (!isListening || !supported) {
       recognitionRef.current?.stop();
       recognitionRef.current = null;
       return;
     }
 
+    // Reset the duplicate-submit guard for this new listening session.
+    hasAutoSubmittedRef.current = false;
+
     const session = startSpeechRecognition(
       pack,
-      (result) => onVoiceResult(result.transcript),
-      () => onListeningEnd(),
+      (result) => {
+        // Any new result — interim or final — cancels the pending silence timer.
+        // The Storykeeper is still speaking.
+        if (silenceTimerRef.current !== null) {
+          window.clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+
+        onVoiceResultRef.current(result.transcript);
+
+        // Only start the silence timer after a FINAL result that has content.
+        // Interim results are incomplete phrases; we must not cut the
+        // Storykeeper off mid-thought.
+        if (result.isFinal && result.transcript.trim().length > 0) {
+          silenceTimerRef.current = window.setTimeout(() => {
+            silenceTimerRef.current = null;
+
+            // Duplicate-submit guard: if this session already auto-submitted
+            // (e.g. a second timer race), do nothing.
+            if (hasAutoSubmittedRef.current) return;
+            hasAutoSubmittedRef.current = true;
+
+            // Stop recognition before signalling submission so the onend
+            // auto-restart loop in speech.ts does not fire a new session.
+            recognitionRef.current?.stop();
+            recognitionRef.current = null;
+
+            onAutoSubmitRef.current();
+          }, SILENCE_THRESHOLD_MS);
+        }
+      },
+      () => onListeningEndRef.current(),
       voicePrefix,
       voiceLifecycle,
     );
     recognitionRef.current = session;
 
     return () => {
+      // Clear the silence timer on cleanup so a pending auto-submit does not
+      // fire after the session has been torn down (e.g. user pressed Stop
+      // Listening before the threshold elapsed).
+      if (silenceTimerRef.current !== null) {
+        window.clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
       session?.stop();
       recognitionRef.current = null;
     };
   }, [
     isListening,
     supported,
-    onListeningEnd,
-    onVoiceResult,
     pack,
     voicePrefix,
     voiceLifecycle,
+    // onVoiceResult, onListeningEnd, onAutoSubmit intentionally omitted —
+    // they are accessed via refs so the session is not torn down on each
+    // parent re-render.
   ]);
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {

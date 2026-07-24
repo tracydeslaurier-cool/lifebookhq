@@ -224,6 +224,23 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
     [handleVoiceResult, markFirstInteraction],
   );
 
+  // Automatic turn completion: silence threshold elapsed after final result.
+  // Routes through the same handleSubmit guard as Keep This, so duplicate
+  // submissions are blocked at the useFirstConversation level regardless of
+  // which path fires first (silence timer, Keep This, Stop Listening, or the
+  // ThresholdInput-level hasAutoSubmittedRef guard).
+  const onAutoSubmit = useCallback(() => {
+    const chars = transcript.trim().length;
+    if (chars > 0) {
+      emitEvent(variant, "voice_auto_submitted", {
+        inputMode,
+        chars,
+        elapsedMs: elapsed(),
+      });
+    }
+    handleSubmit();
+  }, [transcript, inputMode, handleSubmit, variant, elapsed]);
+
   const onMic = useCallback(() => {
     usedVoiceRef.current = true;
     markFirstInteraction("voice");
@@ -335,6 +352,7 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
               isListening={isListening}
               onValueChange={onValueChange}
               onVoiceResult={onVoiceResult}
+              onAutoSubmit={onAutoSubmit}
               onSubmit={onSubmit}
               onMicToggle={onMic}
               onListeningEnd={handleListeningEnd}
