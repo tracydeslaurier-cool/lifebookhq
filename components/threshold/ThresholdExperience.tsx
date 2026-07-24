@@ -336,6 +336,12 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
             </p>
           ) : null}
 
+          {submittedThought && (!companionReply || !showCompanionResponse) ? (
+            <p className="mt-4 font-sans text-sm font-extralight tracking-[0.10em] text-[var(--lb-fg-muted)]">
+              Let me think about that…
+            </p>
+          ) : null}
+
           {companionReply ? (
             <CompanionResponse
               opening={companionReply.opening}
