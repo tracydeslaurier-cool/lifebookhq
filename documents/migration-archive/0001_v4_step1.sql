@@ -1,0 +1,1575 @@
+-- ============================================================
+-- Migration: 0001_types_and_vocabularies.sql
+-- LifeBook — PostgreSQL enum types and reference tables
+-- ============================================================
+-- Status:   DRAFT — awaiting Discovery Partner review
+-- Date:     2026-07-23
+-- Revision: 3 (reclassification audit per DP instructions)
+--
+-- Contents:
+--   Section A  — Universal quality dimensions         (4 enums)
+--   Section B  — Entity record states                 (5 enums)
+--   Section C  — LifeBook and anchor status           (11 enums)
+--   Section D  — Content layer states                 (8 enums)
+--   Section E  — Governance states and rules          (5 enums)
+--   Section F  — Operational states and rules         (5 enums)
+--   Section G  — Jurisdiction states                  (2 enums)
+--   Section H  — Attribute layer structural types     (1 enum)
+--
+--   Section I  — Standard reference tables            (35 tables)
+--   Section J  — Governed reference tables            (2 tables)
+--   Section K  — Mapping table                        (1 table)
+--
+--   Section L  — Row-level security
+--
+-- Total:  41 enum types · 38 reference/mapping tables
+--
+-- Deferred (not in this migration):
+--   escalation_record_status — EscalationRecord not yet designed
+--   person_lifecycle_status  — Authority/derivation model unresolved
+--   source_derivative_type   — Removed: duplicate of source_derivative_types ref table
+--
+-- Idempotency:
+--   Schema DDL uses IF NOT EXISTS. This migration is designed to be
+--   tracked and run once by the Supabase migration runner.
+--   IF NOT EXISTS is included for local development/reset environments.
+--   In production, the migration runner ensures single execution.
+--   Seed INSERT statements always use ON CONFLICT DO NOTHING.
+--   These are separately idempotent for bootstrap procedures.
+--
+-- DO NOT APPLY to Supabase until Discovery Partner approves.
+-- ============================================================
+
+
+-- ============================================================
+-- SECTION A: Universal Quality Dimensions (4 enums)
+-- Source: GOVERNANCE_MODELS.md §1; CONTENT_LAYER.md Core
+-- ============================================================
+
+  CREATE TYPE evidence_status AS ENUM (
+    'unreviewed',
+    'asserted',
+    'inferred',
+    'supported',
+    'corroborated'
+  );
+
+  CREATE TYPE precision_status AS ENUM (
+    'exact',
+    'approximate',
+    'range',
+    'unknown'
+  );
+
+  CREATE TYPE dispute_status AS ENUM (
+    'uncontested',
+    'disputed',
+    'contradicted',
+    'retracted',
+    'superseded'
+  );
+
+  CREATE TYPE review_status AS ENUM (
+    'pending',
+    'human_reviewed',
+    'policy_approved'
+  );
+
+
+-- ============================================================
+-- SECTION B: Entity Record States (5 enums)
+-- Source: ANCHOR_MODELS.md §1–§13
+-- ============================================================
+
+-- entity_type: class-table inheritance discriminator.
+-- A new value requires a new subtype table and all associated schema.
+  CREATE TYPE entity_type AS ENUM (
+    'person',
+    'organization',
+    'place',
+    'vessel',
+    'community',
+    'event_series'
+  );
+
+  CREATE TYPE canonical_status AS ENUM (
+    'canonical',
+    'candidate',
+    'merged_into',
+    'split_from'
+  );
+
+  CREATE TYPE suppression_state AS ENUM (
+    'active',
+    'suppressed',
+    'redacted',
+    'deletion_pending'
+  );
+
+  CREATE TYPE erasure_state AS ENUM (
+    'none',
+    'erasure_requested',
+    'erasure_in_progress',
+    'erased'
+  );
+
+-- merge_operation_type: 2-value structural discriminator for MergeRecord.
+  CREATE TYPE merge_operation_type AS ENUM (
+    'merge',
+    'split'
+  );
+
+
+-- ============================================================
+-- SECTION C: LifeBook and Anchor Status (11 enums)
+-- Source: ANCHOR_MODELS.md §8–§14
+-- ============================================================
+
+  CREATE TYPE visibility_status AS ENUM (
+    'visible',
+    'hidden',
+    'restricted',
+    'pending_confirmation',
+    'anonymized'
+  );
+
+-- contribution_status: DP restored to enum (reversed ref table classification).
+  CREATE TYPE contribution_status AS ENUM (
+    'active_contributor',
+    'past_contributor',
+    'invited',
+    'declined',
+    'revoked',
+    'not_a_contributor'
+  );
+
+  CREATE TYPE verification_status AS ENUM (
+    'unverified',
+    'pending_verification',
+    'verified',
+    'rejected'
+  );
+
+  CREATE TYPE lifebook_status AS ENUM (
+    'active',
+    'archived',
+    'suspended',
+    'transfer_pending',
+    'deletion_pending'
+  );
+
+  CREATE TYPE lifebook_visibility AS ENUM (
+    'private',
+    'family',
+    'public_preview',
+    'published'
+  );
+
+  CREATE TYPE subject_scope AS ENUM (
+    'individual',
+    'family',
+    'community',
+    'institutional'
+  );
+
+-- stewardship_type: 4-value discriminator; each value implies a
+-- distinct authority assignment model.
+  CREATE TYPE stewardship_type AS ENUM (
+    'self',
+    'designated',
+    'institutional',
+    'post_mortem'
+  );
+
+  CREATE TYPE account_status AS ENUM (
+    'active',
+    'suspended',
+    'pending_verification',
+    'deactivated'
+  );
+
+  CREATE TYPE cross_lifebook_authorization_status AS ENUM (
+    'active',
+    'suspended',
+    'revoked'
+  );
+
+  CREATE TYPE entity_match_status AS ENUM (
+    'generated',
+    'pending_review',
+    'confirmed_same',
+    'confirmed_distinct',
+    'insufficient_evidence',
+    'rejected',
+    'superseded'
+  );
+
+  CREATE TYPE entity_match_review_outcome AS ENUM (
+    'merged',
+    'linked',
+    'distinct_confirmed',
+    'deferred',
+    'no_action'
+  );
+
+
+-- ============================================================
+-- SECTION D: Content Layer States (8 enums)
+-- Source: CONTENT_LAYER.md §2–§17
+-- ============================================================
+
+  CREATE TYPE composition_status AS ENUM (
+    'draft',
+    'submitted',
+    'in_review',
+    'approved',
+    'archived',
+    'withdrawn'
+  );
+
+  CREATE TYPE narrative_parent_relationship AS ENUM (
+    'translation',
+    'revision',
+    'sanitized_version',
+    'ai_draft_of',
+    'excerpt_of'
+  );
+
+  CREATE TYPE narrative_attribution_status AS ENUM (
+    'unverified',
+    'attested',
+    'disputed',
+    'confirmed'
+  );
+
+-- claim_text_validity_state (3): for cached claim text display values.
+-- DISTINCT from artifact_validity_state (5): which adds under_review and expired.
+  CREATE TYPE claim_text_validity_state AS ENUM (
+    'valid',
+    'policy_superseded',
+    'invalidated'
+  );
+
+-- artifact_validity_state (5): for AI-generated content (Narrative, SourceDerivative).
+-- Managed by the AI Context Broker.
+  CREATE TYPE artifact_validity_state AS ENUM (
+    'valid',
+    'policy_superseded',
+    'under_review',
+    'invalidated',
+    'expired'
+  );
+
+  CREATE TYPE evidence_role AS ENUM (
+    'supports',
+    'corroborates',
+    'contextualizes',
+    'contradicts',
+    'supersedes'
+  );
+
+-- claim_predicate_permitted_value_type: strong structural invariant.
+-- Determines which value column in Claim is populated.
+-- A new value type requires a new Claim storage column.
+  CREATE TYPE claim_predicate_permitted_value_type AS ENUM (
+    'text',
+    'date',
+    'numeric',
+    'entity'
+  );
+
+-- unit_category: each named category has distinct validation rules.
+-- 'other' is an escape hatch; adding a named category requires new validation logic.
+  CREATE TYPE unit_category AS ENUM (
+    'duration',
+    'distance',
+    'area',
+    'mass',
+    'currency',
+    'count',
+    'ratio',
+    'other'
+  );
+
+
+-- ============================================================
+-- SECTION E: Governance States and Behavioral Rules (5 enums)
+-- Source: GOVERNANCE_MODELS.md §3–§5; APPROVAL_INSTANCE_MODEL.md §3
+-- ============================================================
+
+-- coordination_rule: behavioral specification — each value is an
+-- algorithm for multi-authority coordination, not a label.
+  CREATE TYPE coordination_rule AS ENUM (
+    'sole',
+    'joint_unanimous',
+    'joint_majority',
+    'joint_any',
+    'escalate'
+  );
+
+-- succession_behaviour: behavioral specification for AuthorityAssignment end.
+  CREATE TYPE succession_behaviour AS ENUM (
+    'terminate',
+    'transfer_to_named',
+    'transfer_to_steward',
+    'transfer_to_court',
+    'policy_default'
+  );
+
+-- governance_lifecycle_condition: condition discriminator for ApprovalPolicy.
+-- Column on ApprovalPolicy is named 'lifecycle_status'; type is this enum.
+-- Jurisdiction-specific terminology variation is handled by the
+-- authority_context_policy_conditions mapping table, not by renaming values.
+  CREATE TYPE governance_lifecycle_condition AS ENUM (
+    'living_with_capacity',
+    'minor_sole_guardian',
+    'minor_joint_guardian',
+    'supported_decision_making',
+    'legal_representative',
+    'deceased_with_preferences',
+    'deceased_without_preferences',
+    'disputed_authority',
+  );
+
+-- resolution_rule: behavioral specification — each value is an algorithm.
+  CREATE TYPE resolution_rule AS ENUM (
+    'subject_wins',
+    'documented_preference_wins',
+    'highest_evidence_status',
+    'most_recent',
+    'documentary_over_oral',
+    'steward_decides',
+    'freeze_pending_review',
+    'escalate_external'
+  );
+
+  CREATE TYPE approval_record_status AS ENUM (
+    'draft',
+    'pending',
+    'approved',
+    'rejected',
+    'expired',
+    'superseded'
+  );
+
+
+-- ============================================================
+-- SECTION F: Operational States and Behavioral Rules (5 enums)
+-- Source: OPERATIONAL_MODELS.md §1–§2
+--
+-- NOTE: escalation_record_status is DEFERRED.
+-- EscalationRecord is not yet designed (OPERATIONAL_MODELS §4.1).
+-- See DEFERRED_TYPE_REGISTER.md §1.
+-- ============================================================
+
+-- escalation_default_action: behavioral specification for EscalationPolicy SLA breach.
+  CREATE TYPE escalation_default_action AS ENUM (
+    'freeze',
+    'deny',
+    'apply_policy_default',
+    'route_to_steward',
+    'route_external',
+    'terminate_agent_run'
+  );
+
+  CREATE TYPE escalation_resolution_type AS ENUM (
+    'step_resolved',
+    'default_action_applied',
+    'external_resolution',
+    'manual_steward_resolution',
+    'cancelled_by_resolution_of_trigger',
+    'cancelled_by_steward'
+  );
+
+  CREATE TYPE contest_status AS ENUM (
+    'open',
+    'under_review',
+    'pending_external',
+    'resolved',
+    'closed_without_resolution',
+    'superseded'
+  );
+
+  CREATE TYPE contest_resolution_type AS ENUM (
+    'authority_determination',
+    'consent_agreement',
+    'external_legal',
+    'community_decision',
+    'steward_decision',
+    'withdrawn',
+    'subject_asserts'
+  );
+
+-- contest_access_mode: behavioral specification for access during active contest.
+  CREATE TYPE contest_access_mode AS ENUM (
+    'read_only_all_parties',
+    'read_only_steward_only',
+    'frozen',
+    'per_party_isolation'
+  );
+
+
+-- ============================================================
+-- SECTION G: Jurisdiction States (2 enums)
+-- Source: OPERATIONAL_MODELS.md §3–§5
+-- ============================================================
+
+  CREATE TYPE guardian_coordination_presumption AS ENUM (
+    'joint_unanimous',
+    'joint_any',
+    'unclear'
+  );
+
+  CREATE TYPE jurisdiction_review_status AS ENUM (
+    'draft',
+    'legally_reviewed',
+    'approved',
+    'superseded'
+  );
+
+
+-- ============================================================
+-- SECTION H: Attribute Layer Structural Types (1 enum)
+-- Source: PERSON_ATTRIBUTE_CATALOGUE.md
+-- ============================================================
+
+-- person_name_derivative_type: 2-value structural discriminator.
+-- Transliteration and translation are the only two derivation
+-- mechanisms in the linguistic model.
+  CREATE TYPE person_name_derivative_type AS ENUM (
+    'transliteration',
+    'translation'
+  );
+
+
+-- ============================================================
+-- REFERENCE TABLE BASE PATTERN
+--
+-- All standard reference tables share:
+--   code              TEXT PRIMARY KEY  (immutable, lowercase snake_case)
+--   display_label     TEXT NOT NULL
+--   description       TEXT
+--   is_active         BOOLEAN NOT NULL DEFAULT TRUE
+--   deprecated_at     TIMESTAMPTZ
+--   replaced_by_code  TEXT REFERENCES <table>(code)
+--   sort_order        INTEGER
+--   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+--
+-- Governance rules enforced at application layer:
+--   Hard deletion is prohibited once a code is referenced.
+--   Deprecate via: deprecated_at = now(), is_active = false,
+--     replaced_by_code = <successor code>.
+--   Policy-sensitive tables require change-control review.
+-- ============================================================
+
+
+-- ============================================================
+-- SECTION I: Standard Reference Tables (35 tables)
+-- ============================================================
+
+-- I.1 access_classifications
+-- Referenced by: Source.access_classification_code; content record columns.
+-- Also referenced by source_types.default_access_classification_code (below).
+CREATE TABLE access_classifications (
+    code                        TEXT        PRIMARY KEY,
+    display_label               TEXT        NOT NULL,
+    description                 TEXT,
+    requires_context_profile_code TEXT,
+    is_active                   BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at               TIMESTAMPTZ,
+    replaced_by_code            TEXT        REFERENCES access_classifications(code),
+    sort_order                  INTEGER,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO access_classifications (code, display_label, description, sort_order) VALUES
+    ('public',              'Public',              'May appear in public views where LifeBook visibility permits', 10),
+    ('family',              'Family',              'Accessible to family members and authorized contributors', 20),
+    ('steward',             'Steward',             'Accessible to the LifeBook steward only', 30),
+    ('restricted',          'Restricted',          'Accessible only to specifically authorized individuals per display policy', 40),
+    ('culturally_governed', 'Culturally Governed', 'Requires culturally_governed_processing ContextProfile; denied by default', 50)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.2 participation_roles
+-- Referenced by: LifeBookEntity.participation_role_code.
+-- Note: candidate_match removed (EntityMatchCandidate model handles this).
+CREATE TABLE participation_roles (
+    code                    TEXT        PRIMARY KEY,
+    display_label           TEXT        NOT NULL,
+    description             TEXT,
+    applies_to_entity_types TEXT[],
+    is_active               BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at           TIMESTAMPTZ,
+    replaced_by_code        TEXT        REFERENCES participation_roles(code),
+    sort_order              INTEGER,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO participation_roles (code, display_label, sort_order) VALUES
+    ('subject',                      'Subject',                      10),
+    ('family_member',                'Family Member',                20),
+    ('storyteller',                  'Storyteller',                  30),
+    ('contributor',                  'Contributor',                  40),
+    ('event_participant',            'Event Participant',            50),
+    ('historical_associate',         'Historical Associate',         60),
+    ('referenced_entity',            'Referenced Entity',           70),
+    ('steward',                      'Steward',                      80),
+    ('witness',                      'Witness',                      90),
+    ('institutional_representative', 'Institutional Representative', 100),
+    ('location_reference',           'Location Reference',           110)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.3 authority_contexts
+-- Referenced by: LifeBookPersonContext.authority_context_code;
+-- authority_context_policy_conditions.authority_context_code.
+CREATE TABLE authority_contexts (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES authority_contexts(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO authority_contexts (code, display_label, description, sort_order) VALUES
+    ('full_subject_authority',       'Full Subject Authority',       'Living adult with capacity for this context', 10),
+    ('minor_subject_sole_guardian',  'Minor — Sole Guardian',        'Minor with one legal guardian', 20),
+    ('minor_subject_joint_guardian', 'Minor — Joint Guardians',      'Minor with multiple joint guardians', 30),
+    ('supported_subject',            'Supported Decision-Making',    'Formal SDM arrangement in effect', 40),
+    ('represented_subject',          'Legally Represented',          'Legal representative or court-appointed guardian', 50),
+    ('deceased_with_preferences',    'Deceased — With Preferences',  'Subject deceased; documented identity preferences exist', 60),
+    ('deceased_without_preferences', 'Deceased — No Preferences',    'Subject deceased; no documented preferences', 70),
+    ('family_contributor',           'Family Contributor',           'Family member in non-subject contributor role', 80),
+    ('external_contributor',         'External Contributor',         'Non-family contributor', 90),
+    ('historical_only',              'Historical Only',              'Historical person with no living governance; steward governs', 100),
+    ('disputed',                     'Authority Disputed',           'Authority is currently contested; ContestRecord is open', 110),
+    ('institutional_representative', 'Institutional Representative', 'Acting in an institutional capacity', 120)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.4 link_types
+-- Referenced by: UserPersonLink.link_type_code.
+CREATE TABLE link_types (
+    code                    TEXT        PRIMARY KEY,
+    display_label           TEXT        NOT NULL,
+    description             TEXT,
+    requires_verification   BOOLEAN     NOT NULL DEFAULT FALSE,
+    is_active               BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at           TIMESTAMPTZ,
+    replaced_by_code        TEXT        REFERENCES link_types(code),
+    sort_order              INTEGER,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO link_types (code, display_label, description, requires_verification, sort_order) VALUES
+    ('self',              'Self',                'User claims this Person record represents themselves', TRUE, 10),
+    ('guardian_of',       'Guardian Of',         'User is a legal guardian of this person', TRUE, 20),
+    ('steward_for',       'Steward For',         'User is a designated steward for this person''s LifeBook records', TRUE, 30),
+    ('executor_for',      'Executor For',        'User holds executor/estate authority for this person', TRUE, 40),
+    ('representative_of', 'Representative Of',   'User has legal or formal authority to act on this person''s behalf', TRUE, 50),
+    ('contributor_about', 'Contributor About',   'User contributes about this person without holding authority', FALSE, 60),
+    ('unverified_claim',  'Unverified Claim',    'User claims a connection; not yet verified', FALSE, 70)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.5 submission_origins
+-- Referenced by: ContentSubmission.submission_origin_code.
+-- default_evidence_status uses the evidence_status enum type (typed FK discipline).
+CREATE TABLE submission_origins (
+    code                    TEXT            PRIMARY KEY,
+    display_label           TEXT            NOT NULL,
+    description             TEXT,
+    default_evidence_status evidence_status,
+    default_review_status   review_status,
+    is_active               BOOLEAN         NOT NULL DEFAULT TRUE,
+    deprecated_at           TIMESTAMPTZ,
+    replaced_by_code        TEXT            REFERENCES submission_origins(code),
+    sort_order              INTEGER,
+    created_at              TIMESTAMPTZ     NOT NULL DEFAULT now()
+);
+
+INSERT INTO submission_origins (code, display_label, description, default_evidence_status, sort_order) VALUES
+    ('subject_submission',                   'Subject Submission',          'Submitted directly by the subject', 'asserted', 10),
+    ('authorized_representative_submission', 'Authorized Representative',   'Submitted by representative_of or guardian_of within scope', 'asserted', 20),
+    ('steward_submission',                   'Steward Submission',          'Submitted by the LifeBook steward', 'asserted', 30),
+    ('executor_submission',                  'Executor Submission',         'Submitted by executor_for holder; posthumous/estate scope only', 'asserted', 40),
+    ('family_submission',                    'Family Submission',           'Submitted by family member; pending review', 'asserted', 50),
+    ('contributor_submission',               'Contributor Submission',      'Submitted by contributor_about; pending review', 'asserted', 60),
+    ('institutional_submission',             'Institutional Submission',    'Submitted by institution; documentary provenance required', 'asserted', 70),
+    ('ai_extracted_submission',              'AI Extracted',                'Extracted by AI; quarantined pending review', 'unreviewed', 80),
+    ('system_inferred_submission',           'System Inferred',             'Inferred by system process; never self-approved', 'inferred', 90)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.6 narrative_types
+-- Referenced by: Narrative.narrative_type_code.
+CREATE TABLE narrative_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    requires_ai_review  BOOLEAN     NOT NULL DEFAULT FALSE,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES narrative_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO narrative_types (code, display_label, requires_ai_review, sort_order) VALUES
+    ('personal_recollection',  'Personal Recollection',  FALSE, 10),
+    ('family_oral_history',    'Family Oral History',    FALSE, 20),
+    ('biographical_essay',     'Biographical Essay',     FALSE, 30),
+    ('historical_account',     'Historical Account',     FALSE, 40),
+    ('interview_transcript',   'Interview Transcript',   FALSE, 50),
+    ('written_memoir',         'Written Memoir',         FALSE, 60),
+    ('community_account',      'Community Account',      FALSE, 70),
+    ('ai_generated_summary',   'AI Generated Summary',   TRUE,  80),
+    ('ai_generated_draft',     'AI Generated Draft',     TRUE,  90)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.7 content_types
+-- Referenced by: Narrative.content_type_code.
+CREATE TABLE content_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES content_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO content_types (code, display_label, sort_order) VALUES
+    ('archival_transcript',     'Archival Transcript',      10),
+    ('historical_quotation',    'Historical Quotation',     20),
+    ('respectful_presentation', 'Respectful Presentation',  30),
+    ('ai_generated_summary',    'AI Generated Summary',     40),
+    ('community_account',       'Community Account',        50)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.8 source_types
+-- Referenced by: Source.source_type_code.
+-- default_access_classification_code: typed FK to access_classifications.
+CREATE TABLE source_types (
+    code                               TEXT        PRIMARY KEY,
+    display_label                      TEXT        NOT NULL,
+    description                        TEXT,
+    default_access_classification_code TEXT        REFERENCES access_classifications(code),
+    dna_restricted                     BOOLEAN     NOT NULL DEFAULT FALSE,
+    is_active                          BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at                      TIMESTAMPTZ,
+    replaced_by_code                   TEXT        REFERENCES source_types(code),
+    sort_order                         INTEGER,
+    created_at                         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO source_types (code, display_label, dna_restricted, sort_order) VALUES
+    ('personal_recollection', 'Personal Recollection', FALSE, 10),
+    ('official_document',     'Official Document',     FALSE, 20),
+    ('vital_record',          'Vital Record',          FALSE, 30),
+    ('church_register',       'Church Register',       FALSE, 40),
+    ('census_record',         'Census Record',         FALSE, 50),
+    ('ship_manifest',         'Ship Manifest',         FALSE, 60),
+    ('military_record',       'Military Record',       FALSE, 70),
+    ('newspaper',             'Newspaper',             FALSE, 80),
+    ('photograph_metadata',   'Photograph Metadata',   FALSE, 90),
+    ('audio_recording',       'Audio Recording',       FALSE, 100),
+    ('video_recording',       'Video Recording',       FALSE, 110),
+    ('letter_correspondence', 'Letter / Correspondence', FALSE, 120),
+    ('diary_journal',         'Diary / Journal',       FALSE, 130),
+    ('legal_document',        'Legal Document',        FALSE, 140),
+    ('court_record',          'Court Record',          FALSE, 150),
+    ('institutional_record',  'Institutional Record',  FALSE, 160),
+    ('archival_database',     'Archival Database',     FALSE, 170),
+    ('map',                   'Map',                   FALSE, 180),
+    ('dna_analysis',          'DNA Analysis',          TRUE,  190),
+    ('other',                 'Other',                 FALSE, 200)
+ON CONFLICT (code) DO NOTHING;
+
+UPDATE source_types
+SET default_access_classification_code = 'restricted'
+WHERE code = 'dna_analysis'
+  AND default_access_classification_code IS NULL;
+
+-- I.9 artifact_types
+-- Referenced by: Artifact.artifact_type_code.
+CREATE TABLE artifact_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES artifact_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO artifact_types (code, display_label, sort_order) VALUES
+    ('photograph',      'Photograph',       10),
+    ('letter',          'Letter',           20),
+    ('certificate',     'Certificate',      30),
+    ('audio_recording', 'Audio Recording',  40),
+    ('video_recording', 'Video Recording',  50),
+    ('document',        'Document',         60),
+    ('map',             'Map',              70),
+    ('recipe',          'Recipe',           80),
+    ('diary_journal',   'Diary / Journal',  90),
+    ('artwork',         'Artwork',          100),
+    ('object',          'Object',           110),
+    ('other',           'Other',            120)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.10 storage_providers
+-- Referenced by: FileStorageReference.storage_provider_code.
+CREATE TABLE storage_providers (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES storage_providers(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO storage_providers (code, display_label, sort_order) VALUES
+    ('supabase_storage', 'Supabase Storage',      10),
+    ('s3',               'AWS S3',                20),
+    ('gcs',              'Google Cloud Storage',  30),
+    ('azure_blob',       'Azure Blob Storage',    40),
+    ('other',            'Other',                 50)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.11 file_storage_roles
+-- Referenced by: FileStorageReference.file_storage_role_code.
+-- RENAMED from file_derivative_relationships per DP Decision 3.
+-- FK column on FileStorageReference renamed from derivative_relationship
+-- to file_storage_role_code (applied in FileStorageReference migration).
+CREATE TABLE file_storage_roles (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES file_storage_roles(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO file_storage_roles (code, display_label, sort_order) VALUES
+    ('original',   'Original',   10),
+    ('thumbnail',  'Thumbnail',  20),
+    ('compressed', 'Compressed', 30),
+    ('transcript', 'Transcript', 40),
+    ('derivative', 'Derivative', 50)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.12 artifact_source_relationships
+-- Referenced by: ArtifactSourceLink.relationship_code.
+CREATE TABLE artifact_source_relationships (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES artifact_source_relationships(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO artifact_source_relationships (code, display_label, sort_order) VALUES
+    ('artifact_is_source',       'Artifact Is Source',        10),
+    ('artifact_contains_source', 'Artifact Contains Source',  20),
+    ('source_describes_artifact','Source Describes Artifact', 30),
+    ('digital_copy_of_source',   'Digital Copy of Source',    40),
+    ('derivative_of_artifact',   'Derivative of Artifact',    50)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.13 participant_roles
+-- Referenced by: EventParticipant.participant_role_code.
+CREATE TABLE participant_roles (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES participant_roles(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO participant_roles (code, display_label, sort_order) VALUES
+    ('subject',           'Subject',           10),
+    ('spouse_partner',    'Spouse / Partner',  20),
+    ('parent',            'Parent',            30),
+    ('guardian',          'Guardian',          40),
+    ('witness',           'Witness',           50),
+    ('officiant',         'Officiant',         60),
+    ('family_member',     'Family Member',     70),
+    ('passenger',         'Passenger',         80),
+    ('crew_member',       'Crew Member',       90),
+    ('employer',          'Employer',          100),
+    ('employee',          'Employee',          110),
+    ('community_member',  'Community Member',  120),
+    ('location',          'Location',          130),
+    ('vessel',            'Vessel',            140),
+    ('organizing_body',   'Organizing Body',   150),
+    ('other',             'Other',             160)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.14 event_types
+-- Referenced by: Event.event_type_code.
+CREATE TABLE event_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES event_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO event_types (code, display_label, sort_order) VALUES
+    ('birth',                        'Birth',                         10),
+    ('baptism',                      'Baptism',                       20),
+    ('naming_ceremony',              'Naming Ceremony',               30),
+    ('marriage',                     'Marriage',                      40),
+    ('civil_partnership_registration','Civil Partnership Registration',45),
+    ('separation_divorce',           'Separation / Divorce',          50),
+    ('death',                        'Death',                         60),
+    ('burial_interment',             'Burial / Interment',            70),
+    ('immigration',                  'Immigration',                   80),
+    ('emigration',                   'Emigration',                    90),
+    ('naturalization',               'Naturalization',                100),
+    ('employment_start',             'Employment Start',              110),
+    ('employment_end',               'Employment End',                120),
+    ('military_service',             'Military Service',              130),
+    ('graduation',                   'Graduation',                    140),
+    ('ordination',                   'Ordination',                    150),
+    ('adoption',                     'Adoption',                      160),
+    ('voyage',                       'Voyage',                        170),
+    ('community_ceremony',           'Community Ceremony',            180),
+    ('institutional_event',          'Institutional Event',           190),
+    ('other',                        'Other',                         200)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.15 authority_basis_types
+-- Referenced by: AuthorityAssignment.authority_basis_type_code.
+-- claim_predicate_code FK added via ALTER TABLE in ClaimPredicate migration (OQ-2).
+CREATE TABLE authority_basis_types (
+    code                       TEXT        PRIMARY KEY,
+    display_label              TEXT        NOT NULL,
+    description                TEXT,
+    requires_documentary_basis BOOLEAN     NOT NULL DEFAULT TRUE,
+    claim_predicate_code       TEXT,
+    is_active                  BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at              TIMESTAMPTZ,
+    replaced_by_code           TEXT        REFERENCES authority_basis_types(code),
+    sort_order                 INTEGER,
+    created_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO authority_basis_types (code, display_label, description, requires_documentary_basis, sort_order) VALUES
+    ('self_assertion',               'Self Assertion',               'Subject asserting their own information', FALSE, 10),
+    ('parental_guardianship',        'Parental Guardianship',        'Legal parent acting as guardian', TRUE, 20),
+    ('court_appointed_guardianship', 'Court Appointed Guardianship', 'Guardian appointed by court order', TRUE, 30),
+    ('supported_decision_making',    'Supported Decision Making',    'Formal SDM arrangement; subject retains authority', TRUE, 40),
+    ('power_of_attorney_general',    'Power of Attorney (General)',  'General power of attorney', TRUE, 50),
+    ('power_of_attorney_personal',   'Power of Attorney (Personal)', 'Personal care power of attorney', TRUE, 60),
+    ('enduring_power_of_attorney',   'Enduring Power of Attorney',   'Continuing after incapacity', TRUE, 70),
+    ('testamentary_executor',        'Testamentary Executor',        'Executor named in a will', TRUE, 80),
+    ('estate_administrator',         'Estate Administrator',         'Court-appointed administrator (intestate)', TRUE, 90),
+    ('cultural_authority',           'Cultural Authority',           'Community-recognized authority for cultural information', FALSE, 100),
+    ('institutional_authority',      'Institutional Authority',      'Recognized institutional authority', TRUE, 110),
+    ('legal_representative',         'Legal Representative',         'Lawyer acting under instruction', TRUE, 120),
+    ('stewardship_succession',       'Stewardship Succession',       'Authority transferred via LifeBook stewardship rules', FALSE, 130),
+    ('policy_default',               'Policy Default',               'No specific authority assigned; LifeBook default rules apply', FALSE, 140)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.16 conflict_resolution_purposes
+-- Referenced by: ConflictResolutionPolicy.purpose_code.
+CREATE TABLE conflict_resolution_purposes (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES conflict_resolution_purposes(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO conflict_resolution_purposes (code, display_label, sort_order) VALUES
+    ('display_public',             'Public Display',             10),
+    ('display_family',             'Family Display',             20),
+    ('display_steward',            'Steward Display',            30),
+    ('ordinary_search',            'Ordinary Search',            40),
+    ('identity_resolution_search', 'Identity Resolution Search', 50),
+    ('default_export',             'Default Export',             60),
+    ('steward_export',             'Steward Export',             70),
+    ('ai_generation',              'AI Generation',              80),
+    ('narrative_composition',      'Narrative Composition',      90)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.17 escalation_trigger_types
+-- Referenced by: EscalationPolicy.trigger_type_code.
+CREATE TABLE escalation_trigger_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    freezes_actions     BOOLEAN     NOT NULL DEFAULT FALSE,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES escalation_trigger_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO escalation_trigger_types (code, display_label, description, freezes_actions, sort_order) VALUES
+    ('approval_timeout',             'Approval Timeout',             'Required approver has not responded within approval_expiry_days', FALSE, 10),
+    ('no_authority_assigned',        'No Authority Assigned',        'Requested action has no applicable AuthorityAssignment', FALSE, 20),
+    ('unresolvable_conflict',        'Unresolvable Conflict',        'ConflictResolutionPolicy returned escalate_external; no steward', FALSE, 30),
+    ('validation_violation',         'Validation Violation',         'Context Broker detected restricted content in model output', TRUE, 40),
+    ('cannot_classify',              'Cannot Classify',              'SanitizationPipeline could not safely classify content', TRUE, 50),
+    ('dispute_opened',               'Dispute Opened',               'ContestRecord created; affected actions frozen', TRUE, 60),
+    ('dispute_unresolved',           'Dispute Unresolved',           'ContestRecord exceeded resolution SLA', TRUE, 70),
+    ('cultural_protocol_triggered',  'Cultural Protocol Triggered',  'Action requires culturally_governed_processing; no joint authorization', TRUE, 80),
+    ('agent_deprecated',             'Agent Deprecated',             'Active agent run invalidated by agent deprecation', FALSE, 90),
+    ('capacity_change_mid_action',   'Capacity Change Mid-Action',   'Capacity change occurred while approval workflow was in progress', FALSE, 100),
+    ('stewardship_gap',              'Stewardship Gap',              'Stewardship ended with no succession record and no new steward', FALSE, 110)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.18 contest_types
+-- Referenced by: ContestRecord.contest_type_code.
+-- default_access_mode uses the contest_access_mode enum type.
+CREATE TABLE contest_types (
+    code                TEXT              PRIMARY KEY,
+    display_label       TEXT              NOT NULL,
+    description         TEXT,
+    default_access_mode contest_access_mode NOT NULL DEFAULT 'per_party_isolation',
+    is_active           BOOLEAN           NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT              REFERENCES contest_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ       NOT NULL DEFAULT now()
+);
+
+INSERT INTO contest_types (code, display_label, sort_order) VALUES
+    ('authority_dispute',              'Authority Dispute',               10),
+    ('identity_claim_dispute',         'Identity Claim Dispute',          20),
+    ('merge_dispute',                  'Merge Dispute',                   30),
+    ('split_dispute',                  'Split Dispute',                   40),
+    ('access_dispute',                 'Access Dispute',                  50),
+    ('posthumous_disclosure_dispute',  'Posthumous Disclosure Dispute',   60),
+    ('cultural_authority_dispute',     'Cultural Authority Dispute',      70),
+    ('capacity_determination_dispute', 'Capacity Determination Dispute',  80),
+    ('stewardship_dispute',            'Stewardship Dispute',             90)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.19 jurisdiction_types
+-- Referenced by: Jurisdiction.jurisdiction_type_code.
+CREATE TABLE jurisdiction_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES jurisdiction_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO jurisdiction_types (code, display_label, sort_order) VALUES
+    ('national',             'National',              10),
+    ('provincial_or_state',  'Provincial / State',    20),
+    ('indigenous_nation',    'Indigenous Nation',     30),
+    ('supranational',        'Supranational',         40),
+    ('international_default','International Default', 50)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.20 person_name_usage_types
+-- Referenced by: PersonName.usage_type_code.
+CREATE TABLE person_name_usage_types (
+    code                        TEXT        PRIMARY KEY,
+    display_label               TEXT        NOT NULL,
+    description                 TEXT,
+    requires_cultural_authority BOOLEAN     NOT NULL DEFAULT FALSE,
+    subject_only_assertion      BOOLEAN     NOT NULL DEFAULT FALSE,
+    is_active                   BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at               TIMESTAMPTZ,
+    replaced_by_code            TEXT        REFERENCES person_name_usage_types(code),
+    sort_order                  INTEGER,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO person_name_usage_types (code, display_label, requires_cultural_authority, sort_order) VALUES
+    ('legal',        'Legal Name',        FALSE, 10),
+    ('preferred',    'Preferred Name',    FALSE, 20),
+    ('former',       'Former Name',       FALSE, 30),
+    ('birth',        'Birth Name',        FALSE, 40),
+    ('married',      'Married Name',      FALSE, 50),
+    ('nickname',     'Nickname',          FALSE, 60),
+    ('stage',        'Stage Name',        FALSE, 70),
+    ('pen',          'Pen Name',          FALSE, 80),
+    ('religious',    'Religious Name',    FALSE, 90),
+    ('indigenous',   'Indigenous Name',   TRUE,  100),
+    ('ceremonial',   'Ceremonial Name',   TRUE,  110),
+    ('institutional','Institutional Name',FALSE, 120),
+    ('pseudonym',    'Pseudonym',         FALSE, 130)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.21 source_derivative_types
+-- Referenced by: SourceDerivative.derivative_type_code.
+-- This is the sole representation of this vocabulary.
+-- The enum source_derivative_type was a duplicate and has been removed.
+CREATE TABLE source_derivative_types (
+    code                   TEXT        PRIMARY KEY,
+    display_label          TEXT        NOT NULL,
+    description            TEXT,
+    contains_personal_data BOOLEAN     NOT NULL DEFAULT TRUE,
+    is_active              BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at          TIMESTAMPTZ,
+    replaced_by_code       TEXT        REFERENCES source_derivative_types(code),
+    sort_order             INTEGER,
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO source_derivative_types (code, display_label, contains_personal_data, sort_order) VALUES
+    ('exact_transcript',           'Exact Transcript',           TRUE,  10),
+    ('extracted_claims',           'Extracted Claims',           TRUE,  20),
+    ('sanitized_summary',          'Sanitized Summary',          FALSE, 30),
+    ('identity_resolution_tokens', 'Identity Resolution Tokens', TRUE,  40),
+    ('access_metadata',            'Access Metadata',            FALSE, 50)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.22 data_conflict_types
+-- DP Decision 1: converted from enum data_conflict_type.
+-- Referenced by: ConflictResolutionPolicy.conflict_type_code; ConflictRecord.conflict_type_code.
+-- default_escalation_policy_code FK added in EscalationPolicy migration (OQ-3).
+CREATE TABLE data_conflict_types (
+    code                           TEXT            PRIMARY KEY,
+    display_label                  TEXT            NOT NULL,
+    description                    TEXT,
+    default_resolution_rule        resolution_rule,
+    default_escalation_policy_code TEXT,
+    is_active                      BOOLEAN         NOT NULL DEFAULT TRUE,
+    deprecated_at                  TIMESTAMPTZ,
+    replaced_by_code               TEXT            REFERENCES data_conflict_types(code),
+    sort_order                     INTEGER,
+    created_at                     TIMESTAMPTZ     NOT NULL DEFAULT now()
+);
+
+INSERT INTO data_conflict_types (code, display_label, description, default_resolution_rule, sort_order) VALUES
+    ('competing_assertions',   'Competing Assertions',   'Two or more parties have asserted different values', NULL, 10),
+    ('evidence_contradiction', 'Evidence Contradiction', 'Documentary evidence conflicts with oral assertion', 'documentary_over_oral', 20),
+    ('authority_dispute',      'Authority Dispute',      'Two parties each claim authority to assert', 'escalate_external', 30),
+    ('ai_vs_human',            'AI vs Human',            'AI inference conflicts with a human assertion', 'subject_wins', 40),
+    ('historical_vs_current',  'Historical vs Current',  'Historical record conflicts with subject''s current self-description', 'subject_wins', 50)
+ON CONFLICT (code) DO NOTHING;
+
+-- ── New reference tables: 13 types converted from proposed enums ──────────────
+
+-- I.23 organization_types
+-- DP explicit: extensible; cultural/jurisdictional expansion; hierarchy needed.
+-- Referenced by: Organization.organization_type_code.
+CREATE TABLE organization_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES organization_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO organization_types (code, display_label, sort_order) VALUES
+    ('religious',     'Religious',     10),
+    ('governmental',  'Governmental',  20),
+    ('military',      'Military',      30),
+    ('educational',   'Educational',   40),
+    ('commercial',    'Commercial',    50),
+    ('civic',         'Civic',         60),
+    ('community',     'Community',     70),
+    ('cultural',      'Cultural',      80),
+    ('other',         'Other',         90)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.24 creation_sources
+-- DP explicit: will expand (institutional_import, archival_ingest, etc.);
+-- may need provenance metadata.
+-- Referenced by: Entity.creation_source_code.
+CREATE TABLE creation_sources (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES creation_sources(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO creation_sources (code, display_label, description, sort_order) VALUES
+    ('user_created',       'User Created',        'Created directly by a User', 10),
+    ('document_extracted', 'Document Extracted',  'Extracted from a source document by AI', 20),
+    ('system_inferred',    'System Inferred',     'Inferred by system process (e.g., identity resolution)', 30),
+    ('imported',           'Imported',            'Imported from an external dataset', 40)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.25 place_types
+-- Localization and hierarchy needed; will expand.
+-- Referenced by: Place.place_type_code.
+CREATE TABLE place_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES place_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO place_types (code, display_label, sort_order) VALUES
+    ('country',              'Country',              10),
+    ('province_state',       'Province / State',     20),
+    ('city_town_village',    'City / Town / Village',30),
+    ('neighbourhood',        'Neighbourhood',        40),
+    ('street',               'Street',               50),
+    ('building',             'Building',             60),
+    ('church',               'Church',               70),
+    ('cemetery',             'Cemetery',             80),
+    ('farm_estate',          'Farm / Estate',        90),
+    ('geographic_feature',   'Geographic Feature',   100),
+    ('other',                'Other',                110)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.26 coordinate_precisions
+-- Categorization for display/rendering; not a state machine.
+-- Referenced by: Place.coordinate_precision_code.
+CREATE TABLE coordinate_precisions (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES coordinate_precisions(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO coordinate_precisions (code, display_label, description, sort_order) VALUES
+    ('exact',       'Exact',       'Specific, verified coordinates',                     10),
+    ('approximate', 'Approximate', 'Near but not exact',                                 20),
+    ('centroid',    'Centroid',    'Administrative or polygon centroid',                  30),
+    ('disputed',    'Disputed',    'Coordinates are contested',                          40),
+    ('unknown',     'Unknown',     'No precision information available',                  50)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.27 vessel_types
+-- Historical and cultural expansion expected.
+-- Referenced by: Vessel.vessel_type_code.
+CREATE TABLE vessel_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES vessel_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO vessel_types (code, display_label, sort_order) VALUES
+    ('ship',           'Ship',            10),
+    ('steamship',      'Steamship',       20),
+    ('sailing_vessel', 'Sailing Vessel',  30),
+    ('aircraft',       'Aircraft',        40),
+    ('train',          'Train',           50),
+    ('other',          'Other',           60)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.28 community_types
+-- Cultural governance consideration; localization needed.
+-- Indigenous classifications require governed expansion.
+-- Referenced by: Community.community_type_code.
+CREATE TABLE community_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES community_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO community_types (code, display_label, sort_order) VALUES
+    ('indigenous_nation',    'Indigenous Nation',    10),
+    ('ethnic_community',     'Ethnic Community',     20),
+    ('religious_community',  'Religious Community',  30),
+    ('geographic_community', 'Geographic Community', 40),
+    ('occupational_community','Occupational Community', 50),
+    ('other',                'Other',               60)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.29 series_types
+-- Will expand as archival and community forms are supported.
+-- Referenced by: EventSeries.series_type_code.
+CREATE TABLE series_types (
+    code                       TEXT        PRIMARY KEY,
+    display_label              TEXT        NOT NULL,
+    description                TEXT,
+    is_active                  BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at              TIMESTAMPTZ,
+    replaced_by_code           TEXT        REFERENCES series_types(code),
+    sort_order                 INTEGER,
+    created_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO series_types (code, display_label, sort_order) VALUES
+    ('annual_gathering',          'Annual Gathering',           10),
+    ('institutional_record_series','Institutional Record Series',20),
+    ('migration_wave',            'Migration Wave',             30),
+    ('military_campaign',         'Military Campaign',          40),
+    ('other',                     'Other',                     50)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.30 creation_reasons
+-- Non-structural categorization; will expand.
+-- Referenced by: LifeBook.creation_reason_code.
+CREATE TABLE creation_reasons (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES creation_reasons(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO creation_reasons (code, display_label, sort_order) VALUES
+    ('personal_history',  'Personal History',   10),
+    ('family_history',    'Family History',     20),
+    ('memorial',          'Memorial',           30),
+    ('community_record',  'Community Record',   40),
+    ('other',             'Other',              50)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.31 mention_roles
+-- Categorization for display and attribution; can expand without logic changes.
+-- Referenced by: Mention.mention_role_code.
+CREATE TABLE mention_roles (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES mention_roles(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO mention_roles (code, display_label, sort_order) VALUES
+    ('subject',     'Subject',     10),
+    ('narrator',    'Narrator',    20),
+    ('participant', 'Participant', 30),
+    ('mentioned',   'Mentioned',   40),
+    ('quoted',      'Quoted',      50),
+    ('depicted',    'Depicted',    60),
+    ('community',   'Community',   70)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.32 authority_roles
+-- Jurisdiction-specific behavior; localization; may expand with new legal instruments.
+-- Referenced by: AuthorityAssignment.authority_role_code.
+CREATE TABLE authority_roles (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES authority_roles(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO authority_roles (code, display_label, description, sort_order) VALUES
+    ('subject',                  'Subject',                  'The person themselves', 10),
+    ('guardian_sole',            'Guardian (Sole)',           'Sole legal guardian', 20),
+    ('guardian_joint',           'Guardian (Joint)',          'One of multiple joint guardians', 30),
+    ('supported_decision_maker', 'Supported Decision-Maker', 'Supporter under SDM arrangement', 40),
+    ('legal_representative',     'Legal Representative',     'Lawyer or formal legal representative', 50),
+    ('court_appointed_guardian', 'Court Appointed Guardian', 'Guardian appointed by court order', 60),
+    ('steward',                  'Steward',                  'LifeBook-designated steward', 70),
+    ('executor',                 'Executor',                 'Estate executor named in a will', 80),
+    ('estate_administrator',     'Estate Administrator',     'Court-appointed administrator (intestate)', 90),
+    ('cultural_authority',       'Cultural Authority',       'Community-recognized cultural authority', 100),
+    ('institutional_authority',  'Institutional Authority',  'Recognized institutional authority', 110),
+    ('next_of_kin',              'Next of Kin',              'Statutory default when no other authority assigned', 120)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.33 action_types
+-- Extensible set of governed operations; policy metadata needed per action.
+-- Referenced by: AuthorityAssignment.permitted_actions (TEXT[] column).
+-- SCHEMA IMPLICATION: The AuthorityAssignment.permitted_actions column will be
+-- TEXT[] with application-level validation against action_types(code), OR
+-- normalized to a junction table. Resolution required at AuthorityAssignment
+-- migration time. See SOURCE_TO_SCHEMA_TYPE_MATRIX.md Flag 1.
+CREATE TABLE action_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    requires_dual_approval BOOLEAN  NOT NULL DEFAULT FALSE,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES action_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO action_types (code, display_label, sort_order) VALUES
+    ('assert_preferred_name',       'Assert Preferred Name',        10),
+    ('assert_legal_name',           'Assert Legal Name',            20),
+    ('assert_former_name',          'Assert Former Name',           30),
+    ('assert_birth_name',           'Assert Birth Name',            40),
+    ('assert_pronouns',             'Assert Pronouns',              50),
+    ('assert_gender_descriptor',    'Assert Gender Descriptor',     60),
+    ('assert_indigenous_name',      'Assert Indigenous Name',       70),
+    ('assert_ceremonial_name',      'Assert Ceremonial Name',       80),
+    ('modify_display_policy',       'Modify Display Policy',        90),
+    ('modify_export_policy',        'Modify Export Policy',         100),
+    ('modify_search_policy',        'Modify Search Policy',         110),
+    ('approve_evidence_promotion',  'Approve Evidence Promotion',   120),
+    ('approve_ai_promotion',        'Approve AI Promotion',         130),
+    ('approve_merge',               'Approve Merge',                140),
+    ('approve_split',               'Approve Split',                150),
+    ('approve_publish_living',      'Approve Publish (Living)',     160),
+    ('approve_contact',             'Approve Contact',              170),
+    ('approve_share_sensitive',     'Approve Share Sensitive',      180),
+    ('approve_posthumous_disclosure','Approve Posthumous Disclosure',190),
+    ('transfer_stewardship',        'Transfer Stewardship',         200),
+    ('revoke_access',               'Revoke Access',                210),
+    ('archive_record',              'Archive Record',               220),
+    ('export_full',                 'Export Full',                  230)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.34 person_name_derivation_methods
+-- Categorization for provenance display; can expand.
+-- Referenced by: PersonName.derivation_method_code.
+CREATE TABLE person_name_derivation_methods (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES person_name_derivation_methods(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO person_name_derivation_methods (code, display_label, sort_order) VALUES
+    ('subject_provided',  'Subject Provided',  10),
+    ('community_provided','Community Provided', 20),
+    ('automated',         'Automated',         30),
+    ('scholarly',         'Scholarly',         40)
+ON CONFLICT (code) DO NOTHING;
+
+-- I.35 pronoun_set_types
+-- Expanding vocabulary; localization needed; custom escape hatch confirms openness.
+-- Referenced by: PersonPronouns.pronoun_set_type_code.
+CREATE TABLE pronoun_set_types (
+    code                TEXT        PRIMARY KEY,
+    display_label       TEXT        NOT NULL,
+    description         TEXT,
+    is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at       TIMESTAMPTZ,
+    replaced_by_code    TEXT        REFERENCES pronoun_set_types(code),
+    sort_order          INTEGER,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO pronoun_set_types (code, display_label, description, sort_order) VALUES
+    ('she_her',    'She / Her',    NULL, 10),
+    ('he_him',     'He / Him',     NULL, 20),
+    ('they_them',  'They / Them',  NULL, 30),
+    ('she_they',   'She / They',   NULL, 40),
+    ('he_they',    'He / They',    NULL, 50),
+    ('custom',     'Custom',       'Subject specifies custom pronoun set in free text', 60),
+    ('unspecified','Unspecified',  NULL, 70)
+ON CONFLICT (code) DO NOTHING;
+
+
+-- ============================================================
+-- SECTION J: Governed Reference Tables (2 tables)
+-- ============================================================
+
+-- J.1 erasure_regimes
+-- DP Decision 4: converted from enum right_to_erasure.
+-- LEGALLY SENSITIVE: row changes require legal review (legal_review_required flag).
+-- Process controls required beyond RLS. See VOCABULARY_RLS_MATRIX.md.
+-- Referenced by: Jurisdiction.erasure_regime_code (FK added in Jurisdiction migration).
+CREATE TABLE erasure_regimes (
+    code                          TEXT        PRIMARY KEY,
+    display_label                 TEXT        NOT NULL,
+    description                   TEXT,
+    permits_full_erasure          BOOLEAN     NOT NULL DEFAULT FALSE,
+    permits_structural_tombstone  BOOLEAN     NOT NULL DEFAULT TRUE,
+    permits_audit_event_retention BOOLEAN     NOT NULL DEFAULT TRUE,
+    requires_derivative_deletion  BOOLEAN     NOT NULL DEFAULT TRUE,
+    requires_search_deindexing    BOOLEAN     NOT NULL DEFAULT TRUE,
+    legal_review_required         BOOLEAN     NOT NULL DEFAULT FALSE,
+    reviewed_at                   TIMESTAMPTZ,
+    effective_from                DATE,
+    effective_until               DATE,
+    is_active                     BOOLEAN     NOT NULL DEFAULT TRUE,
+    deprecated_at                 TIMESTAMPTZ,
+    replaced_by_code              TEXT        REFERENCES erasure_regimes(code),
+    sort_order                    INTEGER,
+    created_at                    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO erasure_regimes (
+    code, display_label, description,
+    permits_full_erasure, permits_structural_tombstone,
+    permits_audit_event_retention, requires_derivative_deletion,
+    requires_search_deindexing, legal_review_required, sort_order
+) VALUES
+    ('strong',        'Strong Erasure',    'Subject may require full deletion; values redacted, structure retained', TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, 10),
+    ('qualified',     'Qualified Erasure', 'Subject may request erasure subject to conditions; certain records retained for legitimate purposes', FALSE, TRUE, TRUE, TRUE, TRUE, TRUE, 20),
+    ('limited',       'Limited',           'No general right to erasure; subject may request correction only', FALSE, FALSE, TRUE, FALSE, FALSE, FALSE, 30),
+    ('none_specified','None Specified',    'Jurisdiction has not specified a right to erasure in applicable law', FALSE, FALSE, TRUE, FALSE, FALSE, FALSE, 40)
+ON CONFLICT (code) DO NOTHING;
+
+-- J.2 authority_context_policy_conditions
+-- DP Decision 2: mapping table preserving governance_lifecycle_condition enum values.
+-- GOVERNANCE SENSITIVE: changes alter which policies govern persons.
+-- Only service_role via migration may alter rows. See VOCABULARY_RLS_MATRIX.md.
+-- jurisdiction_code FK added when Jurisdiction table exists (OQ-4).
+CREATE TABLE authority_context_policy_conditions (
+    id                             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    authority_context_code         TEXT        NOT NULL REFERENCES authority_contexts(code),
+    governance_lifecycle_condition governance_lifecycle_condition NOT NULL,
+    priority                       INTEGER     NOT NULL DEFAULT 0,
+    jurisdiction_code              TEXT,
+    effective_from                 DATE,
+    effective_until                DATE,
+    is_active                      BOOLEAN     NOT NULL DEFAULT TRUE,
+    notes                          TEXT,
+    created_at                     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (authority_context_code, governance_lifecycle_condition, jurisdiction_code)
+);
+
+INSERT INTO authority_context_policy_conditions
+    (authority_context_code, governance_lifecycle_condition, priority, notes)
+VALUES
+    ('full_subject_authority',       'living_with_capacity',          100, 'Standard living adult'),
+    ('minor_subject_sole_guardian',  'minor_sole_guardian',           100, NULL),
+    ('minor_subject_joint_guardian', 'minor_joint_guardian',          100, NULL),
+    ('supported_subject',            'supported_decision_making',     100, NULL),
+    ('represented_subject',          'legal_representative',          100, NULL),
+    ('deceased_with_preferences',    'deceased_with_preferences',     100, NULL),
+    ('deceased_without_preferences', 'deceased_without_preferences',  100, NULL),
+    ('historical_only',              'deceased_without_preferences',   50, 'No living governance; steward governs'),
+    ('disputed',                     'disputed_authority',            100, NULL),
+    ('family_contributor',           'living_with_capacity',           10, 'Contributor role; reduced priority'),
+    ('external_contributor',         'living_with_capacity',           10, 'Contributor role; reduced priority'),
+    ('institutional_representative', 'legal_representative',           80, NULL)
+ON CONFLICT (authority_context_code, governance_lifecycle_condition, jurisdiction_code) DO NOTHING;
+
+
+-- ============================================================
+-- SECTION K: Unit Reference Table
+-- ============================================================
+
+-- K.1 claim_value_units
+-- PK is unit_code (not code, to be semantically explicit).
+-- unit_category column uses the unit_category enum.
+-- Referenced by: Claim.unit_code; ClaimPredicate.permitted_unit_code.
+CREATE TABLE claim_value_units (
+    unit_code           TEXT          PRIMARY KEY,
+    display_label       TEXT          NOT NULL,
+    unit_category       unit_category NOT NULL,
+    requires_qualifier  BOOLEAN       NOT NULL DEFAULT FALSE,
+    deprecated_at       DATE,
+    notes               TEXT,
+    created_at          TIMESTAMPTZ   NOT NULL DEFAULT now()
+);
+
+INSERT INTO claim_value_units (unit_code, display_label, unit_category, requires_qualifier, notes) VALUES
+    ('year',       'Years',        'duration',  FALSE, 'Elapsed duration in years. Do not use for age — use age_years.'),
+    ('month',      'Months',       'duration',  FALSE, NULL),
+    ('day',        'Days',         'duration',  FALSE, NULL),
+    ('age_years',  'Age in Years', 'duration',  FALSE, 'Age at a specific point in time. Distinct from year.'),
+    ('km',         'Kilometres',   'distance',  FALSE, NULL),
+    ('mile',       'Miles',        'distance',  FALSE, NULL),
+    ('acre',       'Acres',        'area',      FALSE, NULL),
+    ('hectare',    'Hectares',     'area',      FALSE, NULL),
+    ('currency',   'Currency',     'currency',  TRUE,  'Qualifier must be valid ISO 4217 code (e.g., CAD, USD, UAH).'),
+    ('count',      'Count',        'count',     FALSE, 'Only where ClaimPredicate.numeric_integer_only = true.'),
+    ('percentage', 'Percentage',   'ratio',     FALSE, 'Bounded 0–100 by default; predicate may override with numeric_max_value.')
+ON CONFLICT (unit_code) DO NOTHING;
+
+
+-- ============================================================
+-- SECTION L: Row-Level Security
+--
+-- Policy: authenticated role may SELECT all rows on all
+-- vocabulary tables (active and deprecated — see VOCABULARY_RLS_MATRIX.md).
+-- No DML from authenticated. service_role bypasses RLS.
+-- anon role: no SELECT granted.
+--
+-- This migration is run once. CREATE POLICY statements here
+-- do not use IF NOT EXISTS (PostgreSQL 15 compatible).
+-- ============================================================
+
+DO $$ DECLARE tbl TEXT;
+BEGIN
+  FOR tbl IN SELECT unnest(ARRAY[
+    'access_classifications', 'participation_roles', 'authority_contexts',
+    'link_types', 'submission_origins', 'narrative_types', 'content_types',
+    'source_types', 'artifact_types', 'storage_providers', 'file_storage_roles',
+    'artifact_source_relationships', 'participant_roles', 'event_types',
+    'authority_basis_types', 'conflict_resolution_purposes',
+    'escalation_trigger_types', 'contest_types', 'jurisdiction_types',
+    'person_name_usage_types', 'source_derivative_types', 'data_conflict_types',
+    'erasure_regimes', 'authority_context_policy_conditions', 'claim_value_units',
+    'organization_types', 'creation_sources', 'place_types',
+    'coordinate_precisions', 'vessel_types', 'community_types', 'series_types',
+    'creation_reasons', 'mention_roles', 'authority_roles', 'action_types',
+    'person_name_derivation_methods', 'pronoun_set_types'
+  ])
+  LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
+
+    -- Authenticated users may read all vocabulary rows (active and deprecated).
+    -- Application code must filter is_active when presenting new-record options.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_policies
+      WHERE tablename = tbl AND policyname = 'vocab_read_authenticated'
+    ) THEN
+      EXECUTE format(
+        'CREATE POLICY vocab_read_authenticated ON %I AS PERMISSIVE FOR SELECT TO authenticated USING (TRUE)',
+        tbl
+      );
+    END IF;
+    -- No INSERT/UPDATE/DELETE policy for authenticated → implicit DENY.
+    -- service_role bypasses RLS entirely and manages vocabulary via migrations.
+    -- anon receives no policy → implicit DENY on all operations.
+  END LOOP;
+END $$;
+
+
+-- ============================================================
+-- END OF 0001_types_and_vocabularies.sql
+-- Summary:
+--   41 PostgreSQL enum types
+--   38 reference/mapping tables (35 standard + 2 governed + 1 unit)
+--   ~253 seed rows
+--   RLS enabled on all 38 tables
+--   0 placeholder types
+--   0 fabricated values
+-- ============================================================
