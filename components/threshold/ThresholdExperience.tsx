@@ -57,6 +57,7 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
     showCompanionResponse,
     inputMode,
     handleTranscriptChange,
+    handleVoiceResult,
     handleSubmit,
     handleMicToggle,
     handleListeningEnd,
@@ -212,6 +213,17 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
     [handleTranscriptChange, markFirstInteraction],
   );
 
+  // Voice recognition results take a separate path that does NOT stop the mic.
+  // handleTranscriptChange stops listening (correct for keyboard input), but
+  // calling it on every voice result killed the mic after each spoken phrase.
+  const onVoiceResult = useCallback(
+    (value: string) => {
+      markFirstInteraction("voice");
+      handleVoiceResult(value);
+    },
+    [handleVoiceResult, markFirstInteraction],
+  );
+
   const onMic = useCallback(() => {
     usedVoiceRef.current = true;
     markFirstInteraction("voice");
@@ -322,6 +334,7 @@ export function ThresholdExperience({ variant }: { variant: ExperimentVariant })
               voicePrefix={voicePrefix}
               isListening={isListening}
               onValueChange={onValueChange}
+              onVoiceResult={onVoiceResult}
               onSubmit={onSubmit}
               onMicToggle={onMic}
               onListeningEnd={handleListeningEnd}

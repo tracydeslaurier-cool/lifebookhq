@@ -23,6 +23,10 @@ type ThresholdInputProps = {
   voicePrefix: string;
   isListening: boolean;
   onValueChange: (value: string) => void;
+  /** Receives voice recognition results. Separate from onValueChange so that
+   *  voice results do NOT trigger the stop-listening side-effect that
+   *  onValueChange (→ handleTranscriptChange) carries for keyboard input. */
+  onVoiceResult: (value: string) => void;
   onSubmit: () => void;
   onMicToggle: () => void;
   onListeningEnd: () => void;
@@ -36,6 +40,7 @@ export function ThresholdInput({
   voicePrefix,
   isListening,
   onValueChange,
+  onVoiceResult,
   onSubmit,
   onMicToggle,
   onListeningEnd,
@@ -65,7 +70,7 @@ export function ThresholdInput({
 
     const session = startSpeechRecognition(
       pack,
-      (result) => onValueChange(result.transcript),
+      (result) => onVoiceResult(result.transcript),
       () => onListeningEnd(),
       voicePrefix,
       voiceLifecycle,
@@ -80,7 +85,7 @@ export function ThresholdInput({
     isListening,
     supported,
     onListeningEnd,
-    onValueChange,
+    onVoiceResult,
     pack,
     voicePrefix,
     voiceLifecycle,

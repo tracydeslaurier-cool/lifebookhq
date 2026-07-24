@@ -197,6 +197,21 @@ export function useFirstConversation(pack: VoicePack) {
     [inputMode, isListening, persistDraft, stopListening],
   );
 
+  /**
+   * Voice-only transcript update. Does NOT stop listening — that is the bug
+   * that handleTranscriptChange carried: it was shared between keyboard input
+   * (where stopping is correct) and voice results (where it kills the mic
+   * after every spoken phrase). This callback is used exclusively by the
+   * speech recognition callback in ThresholdInput.
+   */
+  const handleVoiceResult = useCallback(
+    (value: string) => {
+      setLiveTranscript(value);
+      persistDraft(value);
+    },
+    [persistDraft],
+  );
+
   const handleMicToggle = useCallback(() => {
     if (isListening) {
       stopListening();
@@ -312,6 +327,7 @@ export function useFirstConversation(pack: VoicePack) {
     activateReplyInput,
     beginArrival: ensureConversation,
     handleTranscriptChange,
+    handleVoiceResult,
     handleMicToggle,
     handleListeningEnd,
     handleSubmit,
