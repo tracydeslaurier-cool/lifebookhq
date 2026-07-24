@@ -340,7 +340,7 @@ CREATE TYPE governance_lifecycle_condition AS ENUM (
     'legal_representative',
     'deceased_with_preferences',
     'deceased_without_preferences',
-    'disputed_authority',
+    'disputed_authority'
 );
 
 -- resolution_rule: behavioral specification — each value is an algorithm.
