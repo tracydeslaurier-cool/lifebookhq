@@ -441,4 +441,36 @@ The following questions are unresolved and require Discovery Partner review befo
 
 ---
 
-*This document is architectural preservation only. No implementation, UI effects, image generation, database tables, or production logic should be produced until these questions are addressed in a Discovery Partner review session.*
+## 13. Earned Atmosphere
+
+The richness of atmosphere should increase only as LifeBook acquires authentic knowledge through governed interaction.
+
+A newly created LifeBook should remain intentionally restrained. As stories are verified, artifacts are contributed, relationships are established, participant preferences become understood, and confidence increases over months and years, the atmosphere may gradually become richer and more personal.
+
+This progression is the visual equivalent of patina. LifeBook should not appear more impressive because software features have increased. It should feel richer because the participant's history has genuinely become richer.
+
+> **Every increase in atmospheric specificity must be justified by a corresponding increase in authenticated understanding.**
+
+This principle applies equally to visual atmosphere, audio atmosphere, environmental cues, personalization, and any future sensory modalities.
+
+Earned atmosphere complements rather than replaces the governance, provenance, and confidence models already established in the Content Layer and Governance Engine. Governance determines what may be used. Provenance establishes whether material is authentic. Confidence measures how well-evidenced that understanding is. Earned atmosphere translates that accumulated authenticated understanding into a proportionally richer environment — no further and no faster than the evidence warrants.
+
+The practical consequence: Level 4 atmosphere is not a product launch feature. It is something a long-standing, actively contributed LifeBook may eventually reach. The default for all new LifeBooks is the restrained end of the spectrum.
+
+---
+
+## 14. Design Intent
+
+> The Memory Atmosphere Engine exists to support recollection, not to perform it.
+>
+> It does not reconstruct memories, infer historical truth, persuade participants toward particular interpretations, or dramatize lived experience.
+>
+> Its responsibility is to create an environment in which authentic remembering may occur — while remaining subordinate to governance, accessibility, cognition, participant agency, and evidence provenance.
+>
+> Atmosphere is contextual rather than representational. It should gently support memory without becoming the memory itself.
+>
+> Like good architecture, its highest achievement is often to go unnoticed.
+
+---
+
+*This document is architectural preservation only. No implementation, UI effects, image generation, database tables, or production logic should be produced until the open questions in §12 are addressed in a Discovery Partner review session.*

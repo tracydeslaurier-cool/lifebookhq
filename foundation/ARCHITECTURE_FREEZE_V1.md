@@ -32,6 +32,7 @@ This document records the frozen state of LifeBook's v1 architecture. It is not 
 | `PRE_MIGRATION_CLOSURE.md` | 1.2 | **Current** | Gate record — approval state, migration authorization, and stage gate model |
 | `MIGRATION_SCOPE_MATRIX.md` | 1.1 | **Current** | Classification — table-by-table migration readiness |
 | `AI_CONTEXT_BROKER.md` | (current) | Not modified in this session | Structural — governs AI model invocation, ContextManifest, and SourceDerivative sanitization |
+| `DESIGN_DOCTRINES.md` | 0.1 | **New — 2026-07-25** — ten enduring design philosophies governing LifeBook across all subsystems; intentionally independent of implementation; expected to evolve slowly over the lifetime of the platform | Foundational — operating philosophy; not a requirements or schema document |
 | `MEMORY_ATMOSPHERE_ENGINE.md` | 0.1 Draft | **New — 2026-07-24** — architectural specification; not yet implemented. Defines the governed contextual subsystem responsible for emotional and sensory atmosphere during memory-gathering sessions. Depends on AI_CONTEXT_BROKER.md, GOVERNANCE_MODELS.md, CONTENT_LAYER.md | Structural — governs atmosphere level model, inertia rules, safety constraints, trauma-sensitive behaviour, governance and consent tiers, and relationship to upstream subsystems |
 
 ### 1.1 Known FK terminology errors requiring correction before migration
