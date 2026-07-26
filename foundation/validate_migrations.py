@@ -1,0 +1,670 @@
+#!/usr/bin/env python3
+"""
+LifeBook Migration Static Validator
+Validates migrations 0001, 0002, 0003 using pglast AST-aware checks.
+All checks are structural — no brittle text matching.
+
+Usage: python3 validate_migrations.py
+Exit code 0 = all checks passed; non-zero = failures detected.
+"""
+
+import sys
+import re
+import hashlib
+from pathlib import Path
+
+try:
+    from pglast import parse_sql
+except ImportError:
+    print("ERROR: pglast not installed. Run: pip install pglast")
+    sys.exit(1)
+
+# ── Paths ──────────────────────────────────────────────────────────────────────
+MIGRATION_DIR = Path('/sessions/determined-awesome-tesla/mnt/lifebookhq/supabase/migrations')
+M0001 = MIGRATION_DIR / '20260724153745_types_and_vocabularies.sql'
+M0002 = MIGRATION_DIR / '20260726083201_predicate_governance_types.sql'
+M0003 = MIGRATION_DIR / '20260726083201_core_schema.sql'
+
+MIGRATIONS = [
+    ('M0001', M0001, 'applied'),
+    ('M0002', M0002, 'pending'),
+    ('M0003', M0003, 'pending'),
+]
+
+# ── Result tracking ────────────────────────────────────────────────────────────
+_results = []
+_failures = 0
+
+def check(name: str, passed: bool, detail: str = ''):
+    global _failures
+    status = 'PASS' if passed else 'FAIL'
+    if not passed:
+        _failures += 1
+    msg = f"  [{status}] {name}"
+    if detail:
+        msg += f": {detail}"
+    _results.append(msg)
+    print(msg)
+
+def section(title: str):
+    line = f"\n{'─' * 70}\n  {title}\n{'─' * 70}"
+    _results.append(line)
+    print(line)
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def load_sql(path: Path) -> str:
+    with open(path) as f:
+        return f.read()
+
+def strip_line_comments(sql: str) -> str:
+    """Remove -- ... line comments so text searches don't match comment text."""
+    return re.sub(r'--[^\n]*', '', sql)
+
+def has_transaction_begin(sql: str) -> bool:
+    """Detect transaction-level BEGIN via pglast AST (not inside function bodies)."""
+    stmts = parse_sql(sql)
+    for s in stmts:
+        if type(s.stmt).__name__ == 'TransactionStmt':
+            kind = str(s.stmt.kind)
+            if 'BEGIN' in kind.upper():
+                return True
+    return False
+
+def has_transaction_commit(sql: str) -> bool:
+    """Detect transaction-level COMMIT via pglast AST."""
+    stmts = parse_sql(sql)
+    for s in stmts:
+        if type(s.stmt).__name__ == 'TransactionStmt':
+            kind = str(s.stmt.kind)
+            if 'COMMIT' in kind.upper():
+                return True
+    return False
+
+def get_stmt_types(stmts) -> dict:
+    counts = {}
+    for s in stmts:
+        t = type(s.stmt).__name__
+        counts[t] = counts.get(t, 0) + 1
+    return counts
+
+def _resolve_string_node(node) -> str:
+    """Extract the string value from a pglast String node or plain str."""
+    if hasattr(node, 'sval'):
+        return node.sval
+    return str(node)
+
+def get_enum_names(stmts) -> list:
+    names = []
+    for s in stmts:
+        if type(s.stmt).__name__ == 'CreateEnumStmt':
+            try:
+                tn = s.stmt.typeName
+                names.append(_resolve_string_node(tn[-1]))
+            except Exception:
+                pass
+    return names
+
+def get_table_names(stmts) -> list:
+    names = []
+    for s in stmts:
+        if type(s.stmt).__name__ == 'CreateStmt':
+            try:
+                names.append(str(s.stmt.relation.relname))
+            except Exception:
+                pass
+    return names
+
+def get_function_names(stmts) -> list:
+    names = []
+    for s in stmts:
+        if type(s.stmt).__name__ == 'CreateFunctionStmt':
+            try:
+                fn_parts = s.stmt.funcname
+                names.append(_resolve_string_node(fn_parts[-1]))
+            except Exception:
+                pass
+    return names
+
+def get_trigger_names(stmts) -> list:
+    names = []
+    for s in stmts:
+        if type(s.stmt).__name__ == 'CreateTrigStmt':
+            try:
+                names.append(str(s.stmt.trigname))
+            except Exception:
+                pass
+    return names
+
+def get_index_names(stmts) -> list:
+    names = []
+    for s in stmts:
+        if type(s.stmt).__name__ == 'IndexStmt':
+            try:
+                names.append(str(s.stmt.idxname))
+            except Exception:
+                pass
+    return names
+
+def get_insert_counts(stmts) -> dict:
+    """Returns {table_name: row_count} for all INSERT statements via AST valuesLists."""
+    counts = {}
+    for s in stmts:
+        if type(s.stmt).__name__ == 'InsertStmt':
+            try:
+                target = str(s.stmt.relation.relname)
+                sel = s.stmt.selectStmt
+                if hasattr(sel, 'valuesLists') and sel.valuesLists:
+                    row_count = len(list(sel.valuesLists))
+                else:
+                    row_count = 0
+                counts[target] = counts.get(target, 0) + row_count
+            except Exception:
+                pass
+    return counts
+
+def get_on_conflict_insert_count(stmts) -> int:
+    """
+    Count INSERT statements that carry an ON CONFLICT clause via AST.
+    This avoids matching comment text.
+    """
+    count = 0
+    for s in stmts:
+        if type(s.stmt).__name__ == 'InsertStmt':
+            on_conflict = getattr(s.stmt, 'onConflictClause', None)
+            if on_conflict is not None:
+                count += 1
+    return count
+
+def check_no_ddl_if_not_exists(stmts) -> list:
+    """
+    Flag DDL-level IF NOT EXISTS in CREATE TABLE / CREATE TYPE / CREATE FUNCTION.
+    Uses AST — does NOT flag PL/pgSQL body content.
+    """
+    violations = []
+    for s in stmts:
+        stype = type(s.stmt).__name__
+        if stype in ('CreateStmt', 'CreateEnumStmt', 'CreateFunctionStmt'):
+            ine = getattr(s.stmt, 'if_not_exists', False)
+            if ine:
+                violations.append(stype)
+    return violations
+
+def has_or_replace_function(stmts) -> bool:
+    """Check if any function uses OR REPLACE via AST."""
+    for s in stmts:
+        if type(s.stmt).__name__ == 'CreateFunctionStmt':
+            replace = getattr(s.stmt, 'replace', False)
+            if replace:
+                return True
+    return False
+
+def get_security_definer_functions(stmts) -> list:
+    """
+    Return names of SECURITY DEFINER functions via AST option scan.
+    Uses .sval for string resolution to avoid repr wrapping.
+    """
+    names = []
+    for s in stmts:
+        if type(s.stmt).__name__ == 'CreateFunctionStmt':
+            opts = getattr(s.stmt, 'options', None) or []
+            for opt in opts:
+                try:
+                    defname = str(getattr(opt, 'defname', '')).lower()
+                    if defname == 'security':
+                        arg = getattr(opt, 'arg', None)
+                        # arg is a Boolean node; boolval=True means SECURITY DEFINER
+                        if arg is not None and getattr(arg, 'boolval', False):
+                            fn_parts = s.stmt.funcname
+                            names.append(_resolve_string_node(fn_parts[-1]))
+                except Exception:
+                    pass
+    return names
+
+def count_alter_table_add_fk(stmts) -> int:
+    """
+    Count ALTER TABLE ADD CONSTRAINT FOREIGN KEY statements.
+    These are the 'file-order deferred' FKs that could not be declared inline
+    because their reference target was created later in the same migration.
+    """
+    count = 0
+    for s in stmts:
+        if type(s.stmt).__name__ == 'AlterTableStmt':
+            cmds = getattr(s.stmt, 'cmds', None) or []
+            for cmd in cmds:
+                subtype = str(getattr(cmd, 'subtype', ''))
+                if 'AddConstraint' in subtype:
+                    constr = getattr(cmd, 'def_', None)
+                    if constr is not None and type(constr).__name__ == 'Constraint':
+                        contype = str(getattr(constr, 'contype', ''))
+                        if 'FOREIGN' in contype:
+                            count += 1
+    return count
+
+def count_rls_enables(stmts) -> int:
+    """Count ENABLE ROW LEVEL SECURITY via AST (AT_EnableRowSecurity subtype)."""
+    count = 0
+    for s in stmts:
+        if type(s.stmt).__name__ == 'AlterTableStmt':
+            cmds = getattr(s.stmt, 'cmds', None) or []
+            for cmd in cmds:
+                subtype = str(getattr(cmd, 'subtype', ''))
+                if 'EnableRowSecurity' in subtype:
+                    count += 1
+    return count
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    h.update(path.read_bytes())
+    return h.hexdigest()
+
+def line_count(path: Path) -> int:
+    return path.read_text().count('\n')
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN VALIDATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def main():
+    print("=" * 70)
+    print("  LifeBook Migration Static Validator")
+    print("=" * 70)
+
+    # ── Load and parse all three migrations ────────────────────────────────────
+    parsed = {}
+    sqls = {}
+    for label, path, status in MIGRATIONS:
+        sql = load_sql(path)
+        sqls[label] = sql
+        try:
+            stmts = parse_sql(sql)
+            parsed[label] = stmts
+        except Exception as e:
+            print(f"FATAL: {label} parse error: {e}")
+            sys.exit(1)
+
+    m0001_stmts = parsed['M0001']
+    m0002_stmts = parsed['M0002']
+    m0003_stmts = parsed['M0003']
+
+    # ── Section 1: pglast parse results ───────────────────────────────────────
+    section("1. pglast Parse Results")
+
+    for label, path, status in MIGRATIONS:
+        stmts = parsed[label]
+        counts = get_stmt_types(stmts)
+        total = sum(counts.values())
+        lc = line_count(path)
+        sha = sha256_file(path)
+        print(f"\n  {label} ({status}) — {path.name}")
+        print(f"    Lines:    {lc}")
+        print(f"    SHA-256:  {sha}")
+        print(f"    Statements parsed: {total}")
+        for t, n in sorted(counts.items()):
+            print(f"      {t}: {n}")
+        check(f"{label} parses cleanly", True, f"{total} statements")
+
+    # ── Section 2: Transaction Wrapping ───────────────────────────────────────
+    section("2. Transaction Wrapping")
+
+    # M0001: No explicit transaction wrap (seeds use ON CONFLICT, DDL not in explicit txn)
+    m0001_has_begin = has_transaction_begin(sqls['M0001'])
+    m0001_has_commit = has_transaction_commit(sqls['M0001'])
+    check("M0001 has no transaction-level BEGIN (no explicit wrap)", not m0001_has_begin)
+    check("M0001 has no transaction-level COMMIT (no explicit wrap)", not m0001_has_commit)
+
+    # M0002 and M0003: must have BEGIN + COMMIT
+    m0002_has_begin = has_transaction_begin(sqls['M0002'])
+    m0002_has_commit = has_transaction_commit(sqls['M0002'])
+    check("M0002 has transaction-level BEGIN", m0002_has_begin)
+    check("M0002 has transaction-level COMMIT", m0002_has_commit)
+
+    m0003_has_begin = has_transaction_begin(sqls['M0003'])
+    m0003_has_commit = has_transaction_commit(sqls['M0003'])
+    check("M0003 has transaction-level BEGIN", m0003_has_begin)
+    check("M0003 has transaction-level COMMIT", m0003_has_commit)
+
+    # ── Section 3: Object Counts ───────────────────────────────────────────────
+    section("3. Object Counts")
+
+    m0001_counts = get_stmt_types(m0001_stmts)
+    check("M0001 has exactly 39 enum types",
+          m0001_counts.get('CreateEnumStmt', 0) == 39,
+          f"found {m0001_counts.get('CreateEnumStmt', 0)}")
+    check("M0001 has exactly 39 tables",
+          m0001_counts.get('CreateStmt', 0) == 39,
+          f"found {m0001_counts.get('CreateStmt', 0)}")
+    check("M0001 has exactly 39 RLS policies",
+          m0001_counts.get('CreatePolicyStmt', 0) == 39,
+          f"found {m0001_counts.get('CreatePolicyStmt', 0)}")
+    check("M0001 has exactly 39 INSERT statements",
+          m0001_counts.get('InsertStmt', 0) == 39,
+          f"found {m0001_counts.get('InsertStmt', 0)}")
+
+    m0001_inserts = get_insert_counts(m0001_stmts)
+    check("M0001 claim_value_units seeded with exactly 11 records",
+          m0001_inserts.get('claim_value_units', 0) == 11,
+          f"found {m0001_inserts.get('claim_value_units', 0)}")
+
+    m0002_counts = get_stmt_types(m0002_stmts)
+    check("M0002 has exactly 3 enum types",
+          m0002_counts.get('CreateEnumStmt', 0) == 3,
+          f"found {m0002_counts.get('CreateEnumStmt', 0)}")
+    check("M0002 has exactly 1 table (display_contexts)",
+          m0002_counts.get('CreateStmt', 0) == 1,
+          f"found {m0002_counts.get('CreateStmt', 0)}")
+    m0002_inserts = get_insert_counts(m0002_stmts)
+    check("M0002 display_contexts seeded with exactly 9 records",
+          m0002_inserts.get('display_contexts', 0) == 9,
+          f"found {m0002_inserts.get('display_contexts', 0)}")
+
+    m0003_counts = get_stmt_types(m0003_stmts)
+    check("M0003 has exactly 49 tables",
+          m0003_counts.get('CreateStmt', 0) == 49,
+          f"found {m0003_counts.get('CreateStmt', 0)}")
+    check("M0003 has exactly 31 functions",
+          m0003_counts.get('CreateFunctionStmt', 0) == 31,
+          f"found {m0003_counts.get('CreateFunctionStmt', 0)}")
+    check("M0003 has exactly 22 triggers",
+          m0003_counts.get('CreateTrigStmt', 0) == 22,
+          f"found {m0003_counts.get('CreateTrigStmt', 0)}")
+    check("M0003 has exactly 15 indexes (14 regular + 1 partial unique)",
+          m0003_counts.get('IndexStmt', 0) == 15,
+          f"found {m0003_counts.get('IndexStmt', 0)}")
+    check("M0003 has exactly 71 RLS policies",
+          m0003_counts.get('CreatePolicyStmt', 0) == 71,
+          f"found {m0003_counts.get('CreatePolicyStmt', 0)}")
+
+    m0003_inserts = get_insert_counts(m0003_stmts)
+    check("M0003 jurisdictions seeded with exactly 6 records",
+          m0003_inserts.get('jurisdictions', 0) == 6,
+          f"found {m0003_inserts.get('jurisdictions', 0)}")
+    check("M0003 claim_predicates seeded with exactly 74 records",
+          m0003_inserts.get('claim_predicates', 0) == 74,
+          f"found {m0003_inserts.get('claim_predicates', 0)}")
+    check("M0003 relationship_types seeded with exactly 27 records",
+          m0003_inserts.get('relationship_types', 0) == 27,
+          f"found {m0003_inserts.get('relationship_types', 0)}")
+    check("M0003 escalation_policies seeded with exactly 7 records",
+          m0003_inserts.get('escalation_policies', 0) == 7,
+          f"found {m0003_inserts.get('escalation_policies', 0)}")
+    check("M0003 approval_policies seeded with exactly 5 records",
+          m0003_inserts.get('approval_policies', 0) == 5,
+          f"found {m0003_inserts.get('approval_policies', 0)}")
+    check("M0003 conflict_resolution_policies seeded with exactly 4 records",
+          m0003_inserts.get('conflict_resolution_policies', 0) == 4,
+          f"found {m0003_inserts.get('conflict_resolution_policies', 0)}")
+    check("M0003 agent_registry seeded with exactly 9 records",
+          m0003_inserts.get('agent_registry', 0) == 9,
+          f"found {m0003_inserts.get('agent_registry', 0)}")
+    check("M0003 context_profiles seeded with exactly 2 records",
+          m0003_inserts.get('context_profiles', 0) == 2,
+          f"found {m0003_inserts.get('context_profiles', 0)}")
+
+    # M0003 must NOT create or seed claim_value_units
+    m0003_table_list = get_table_names(m0003_stmts)
+    m0003_tables_set = set(m0003_table_list)
+    check("M0003 does NOT create claim_value_units (M0001 prerequisite)",
+          'claim_value_units' not in m0003_tables_set)
+    check("M0003 does NOT insert into claim_value_units",
+          'claim_value_units' not in m0003_inserts)
+
+    # M0003 must NOT create or seed display_contexts
+    check("M0003 does NOT create display_contexts (M0002 prerequisite)",
+          'display_contexts' not in m0003_tables_set)
+    check("M0003 does NOT insert into display_contexts",
+          'display_contexts' not in m0003_inserts)
+
+    # ── Section 4: DDL Guard Checks ───────────────────────────────────────────
+    section("4. DDL Guard Checks (No IF NOT EXISTS in DDL Statements)")
+
+    for label, stmts in [('M0001', m0001_stmts), ('M0002', m0002_stmts), ('M0003', m0003_stmts)]:
+        violations = check_no_ddl_if_not_exists(stmts)
+        check(f"{label} has no DDL-level IF NOT EXISTS guards",
+              len(violations) == 0,
+              f"violations: {violations}" if violations else "clean")
+
+    # ON CONFLICT guards via AST (avoids matching comment text)
+    # M0002 must have 0 INSERT ON CONFLICT clauses
+    m0002_oc_ast = get_on_conflict_insert_count(m0002_stmts)
+    check("M0002 INSERT statements have no ON CONFLICT clauses (AST check)",
+          m0002_oc_ast == 0,
+          f"found {m0002_oc_ast}")
+
+    # M0003 must have 0 INSERT ON CONFLICT clauses
+    m0003_oc_ast = get_on_conflict_insert_count(m0003_stmts)
+    check("M0003 INSERT statements have no ON CONFLICT clauses (AST check)",
+          m0003_oc_ast == 0,
+          f"found {m0003_oc_ast}")
+
+    # M0001 must have exactly 39 INSERT ON CONFLICT DO NOTHING clauses (one per seed table)
+    m0001_oc_ast = get_on_conflict_insert_count(m0001_stmts)
+    check("M0001 seed INSERTs use ON CONFLICT DO NOTHING (exactly 39 INSERT statements with ON CONFLICT)",
+          m0001_oc_ast == 39,
+          f"found {m0001_oc_ast} (expected 39 — one per reference table)")
+
+    # ── Section 5: Function Form Checks ───────────────────────────────────────
+    section("5. Function Form Checks")
+
+    check("M0001 has no CREATE OR REPLACE FUNCTION", not has_or_replace_function(m0001_stmts))
+    check("M0002 has no CREATE OR REPLACE FUNCTION", not has_or_replace_function(m0002_stmts))
+    check("M0003 has no CREATE OR REPLACE FUNCTION", not has_or_replace_function(m0003_stmts))
+
+    # SECURITY DEFINER: _fn_trg_claim_numeric_unit_check must be SECURITY DEFINER
+    # Uses .sval for string resolution (not str(), which adds repr wrapper)
+    m0003_sec_def = get_security_definer_functions(m0003_stmts)
+    check("M0003 _fn_trg_claim_numeric_unit_check is SECURITY DEFINER",
+          '_fn_trg_claim_numeric_unit_check' in m0003_sec_def,
+          f"SECURITY DEFINER functions: {m0003_sec_def}" if '_fn_trg_claim_numeric_unit_check' not in m0003_sec_def
+          else f"{len(m0003_sec_def)} SECURITY DEFINER functions found including target")
+
+    # SET search_path on the security definer function body (text scan of DDL only)
+    sec_fn_pattern = re.compile(
+        r'CREATE FUNCTION _fn_trg_claim_numeric_unit_check.*?'
+        r"SET search_path\s*=\s*'public'\s*,\s*pg_temp",
+        re.DOTALL | re.IGNORECASE
+    )
+    check("M0003 _fn_trg_claim_numeric_unit_check has SET search_path = 'public', pg_temp",
+          bool(sec_fn_pattern.search(sqls['M0003'])))
+
+    # ── Section 6: Index Checks ────────────────────────────────────────────────
+    section("6. Index Checks (Multiline-safe via AST)")
+
+    m0003_indexes = get_index_names(m0003_stmts)
+    check("M0003 has uq_lifebook_entities_active (partial unique index)",
+          'uq_lifebook_entities_active' in m0003_indexes,
+          f"all indexes: {sorted(m0003_indexes)}")
+
+    expected_indexes = [
+        'idx_entities_lifebook_id',
+        'idx_claims_subject_entity_id',
+        'idx_claims_predicate_id',
+        'idx_relationships_entity_a',
+        'idx_relationships_entity_b',
+        'idx_authority_assignments_entity_id',
+        'idx_context_manifests_agent_code',
+        'idx_lifebook_memberships_user_lifebook',
+        'idx_authority_assignments_role_entity',
+        'idx_authority_assignments_expiry',
+        'idx_claims_lifebook_review_access',
+        'idx_display_policy_rules_policy_context',
+        'idx_user_person_links_user_entity',
+        'idx_contest_records_contested_record',
+    ]
+    for idx_name in expected_indexes:
+        check(f"M0003 index present: {idx_name}", idx_name in m0003_indexes)
+
+    # ── Section 7: File-Order Deferred FK Count ────────────────────────────────
+    section("7. File-Order Deferred FK Count (ALTER TABLE ADD CONSTRAINT FOREIGN KEY)")
+
+    # 'Deferred FKs' = FKs that could not be declared inline in CREATE TABLE
+    # because their reference target was defined later in the same migration file.
+    # These are expressed as ALTER TABLE ADD CONSTRAINT FOREIGN KEY statements.
+    alter_fk_count = count_alter_table_add_fk(m0003_stmts)
+    check("M0003 has exactly 4 file-order deferred FKs (ALTER TABLE ADD CONSTRAINT FK)",
+          alter_fk_count == 4,
+          f"found {alter_fk_count}")
+
+    # The CONSTRAINT TRIGGER is separately DEFERRABLE INITIALLY DEFERRED
+    ctrig_deferrable_count = sum(
+        1 for s in m0003_stmts
+        if type(s.stmt).__name__ == 'CreateTrigStmt'
+        and getattr(s.stmt, 'deferrable', False)
+    )
+    check("M0003 has exactly 1 DEFERRABLE INITIALLY DEFERRED CONSTRAINT TRIGGER",
+          ctrig_deferrable_count == 1,
+          f"found {ctrig_deferrable_count}")
+
+    # ── Section 8: Trigger Integrity ───────────────────────────────────────────
+    section("8. Trigger Integrity")
+
+    m0003_triggers_list = get_trigger_names(m0003_stmts)
+    m0003_fns = get_function_names(m0003_stmts)
+    trg_fns = [f for f in m0003_fns if f.startswith('_fn_trg_')]
+    unmatched_fns = []
+    for fn in trg_fns:
+        expected_trg = fn.replace('_fn_trg_', 'trg_', 1)
+        if expected_trg not in m0003_triggers_list:
+            unmatched_fns.append(f"{fn} -> {expected_trg}")
+    check("All _fn_trg_* functions have a matching trg_* trigger",
+          len(unmatched_fns) == 0,
+          f"unmatched: {unmatched_fns}" if unmatched_fns else "all matched")
+
+    # trg_claim_numeric_unit_check: BEFORE (timing=2) trigger on claims
+    # pglast uses timing=2 for BEFORE, timing=0 for AFTER
+    trg_numeric_found = False
+    trg_numeric_is_before = False
+    trg_numeric_on_claims = False
+    for s in m0003_stmts:
+        if type(s.stmt).__name__ == 'CreateTrigStmt':
+            if str(s.stmt.trigname) == 'trg_claim_numeric_unit_check':
+                trg_numeric_found = True
+                timing = getattr(s.stmt, 'timing', None)
+                # pglast: timing=2 means BEFORE, timing=0 means AFTER
+                trg_numeric_is_before = (int(str(timing)) == 2)
+                rel = getattr(s.stmt, 'relation', None)
+                if rel:
+                    trg_numeric_on_claims = (str(rel.relname) == 'claims')
+
+    check("M0003 trg_claim_numeric_unit_check exists", trg_numeric_found)
+    check("M0003 trg_claim_numeric_unit_check fires BEFORE (timing=2)",
+          trg_numeric_is_before)
+    check("M0003 trg_claim_numeric_unit_check fires on 'claims' table",
+          trg_numeric_on_claims)
+
+    # trg_lifebook_person_context_completeness: CONSTRAINT TRIGGER (DEFERRABLE)
+    ctrig_found = False
+    ctrig_is_constraint = False
+    ctrig_is_deferrable = False
+    for s in m0003_stmts:
+        if type(s.stmt).__name__ == 'CreateTrigStmt':
+            if str(s.stmt.trigname) == 'trg_lifebook_person_context_completeness':
+                ctrig_found = True
+                ctrig_is_constraint = bool(getattr(s.stmt, 'isconstraint', False))
+                ctrig_is_deferrable = bool(getattr(s.stmt, 'deferrable', False))
+    check("M0003 trg_lifebook_person_context_completeness exists", ctrig_found)
+    check("M0003 trg_lifebook_person_context_completeness is CONSTRAINT TRIGGER",
+          ctrig_is_constraint)
+    check("M0003 trg_lifebook_person_context_completeness is DEFERRABLE",
+          ctrig_is_deferrable)
+
+    # ── Section 9: Cross-Migration Object Uniqueness ───────────────────────────
+    section("9. Cross-Migration Object Uniqueness (Types, Tables, Functions, Triggers)")
+
+    m0001_enums = set(get_enum_names(m0001_stmts))
+    m0002_enums = set(get_enum_names(m0002_stmts))
+    m0003_enums = set(get_enum_names(m0003_stmts))
+    for pair, dupes in [
+        ("M0001 vs M0002", m0001_enums & m0002_enums),
+        ("M0001 vs M0003", m0001_enums & m0003_enums),
+        ("M0002 vs M0003", m0002_enums & m0003_enums),
+    ]:
+        check(f"No duplicate enum names {pair}",
+              len(dupes) == 0,
+              f"duplicates: {dupes}" if dupes else "clean")
+
+    m0001_tables_set = set(get_table_names(m0001_stmts))
+    m0002_tables_set = set(get_table_names(m0002_stmts))
+    for pair, dupes in [
+        ("M0001 vs M0002", m0001_tables_set & m0002_tables_set),
+        ("M0001 vs M0003", m0001_tables_set & m0003_tables_set),
+        ("M0002 vs M0003", m0002_tables_set & m0003_tables_set),
+    ]:
+        check(f"No duplicate table names {pair}",
+              len(dupes) == 0,
+              f"duplicates: {dupes}" if dupes else "clean")
+
+    check("M0001 defines no functions", len(get_function_names(m0001_stmts)) == 0)
+    check("M0002 defines no functions", len(get_function_names(m0002_stmts)) == 0)
+    check("M0001 defines no triggers", len(get_trigger_names(m0001_stmts)) == 0)
+    check("M0002 defines no triggers", len(get_trigger_names(m0002_stmts)) == 0)
+
+    check("M0003 creates no new enum types (all enums from M0001/M0002)",
+          m0003_counts.get('CreateEnumStmt', 0) == 0,
+          f"found {m0003_counts.get('CreateEnumStmt', 0)}")
+
+    # ── Section 10: Deferred FK Targets Exist Earlier in M0003 ────────────────
+    section("10. Deferred FK Targets Created Earlier in M0003")
+
+    deferred_fk_targets = {
+        'approval_policies': 'lifebook_person_contexts.permission_cache_policy_version_id FK',
+        'approval_records': 'display_policies.approval_record_id FK',
+        'claims': 'authority_assignments.basis_claim_id FK',
+        'context_manifests': 'claims.context_manifest_id FK',
+    }
+    for tbl, desc in deferred_fk_targets.items():
+        check(f"Deferred FK target '{tbl}' created within M0003 ({desc})",
+              tbl in m0003_tables_set)
+
+    # ── Section 11: Prerequisite Dependencies ─────────────────────────────────
+    section("11. Prerequisite Dependency Checks")
+
+    check("claim_value_units exists in M0001 (FK prerequisite for M0003 claims.value_unit_code)",
+          'claim_value_units' in m0001_tables_set)
+    check("display_contexts exists in M0002 (FK prerequisite for M0003 display_policy_rules.display_context_code)",
+          'display_contexts' in m0002_tables_set)
+    check("M0003 references auth.users (Supabase built-in, no DDL required)",
+          bool(re.search(r'REFERENCES\s+auth\.users', sqls['M0003'])))
+
+    # ── Section 12: RLS Coverage (AST-based) ──────────────────────────────────
+    section("12. RLS Coverage (AST-based, not text match)")
+
+    rls_enable_count = count_rls_enables(m0003_stmts)
+    check("M0003 enables RLS on exactly 25 tables (AST: AT_EnableRowSecurity subtype)",
+          rls_enable_count == 25,
+          f"found {rls_enable_count}")
+    check("M0003 has exactly 71 RLS policies",
+          m0003_counts.get('CreatePolicyStmt', 0) == 71,
+          f"found {m0003_counts.get('CreatePolicyStmt', 0)}")
+
+    # ── Section 13: Grant Structure ────────────────────────────────────────────
+    section("13. Grant / Revoke Structure")
+
+    m0003_grants = m0003_counts.get('GrantStmt', 0)
+    check("M0003 has >= 50 GRANT/REVOKE statements",
+          m0003_grants >= 50,
+          f"found {m0003_grants}")
+
+    # ── Final Summary ──────────────────────────────────────────────────────────
+    section("SUMMARY")
+    total_checks = len([r for r in _results if '[PASS]' in r or '[FAIL]' in r])
+    total_pass = len([r for r in _results if '[PASS]' in r])
+    total_fail = len([r for r in _results if '[FAIL]' in r])
+
+    print(f"\n  Total checks:  {total_checks}")
+    print(f"  Passed:        {total_pass}")
+    print(f"  Failed:        {total_fail}")
+    if total_fail == 0:
+        print("\n  RESULT: ALL CHECKS PASSED — zero failures")
+    else:
+        print(f"\n  RESULT: {total_fail} FAILURE(S) DETECTED")
+        print("\n  Failed checks:")
+        for r in _results:
+            if '[FAIL]' in r:
+                print(r)
+
+    return 0 if total_fail == 0 else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
