@@ -285,6 +285,205 @@ def get_create_role_names(stmts) -> list:
     return names
 
 
+# ── Semantic schema validator helpers ──────────────────────────────────────────
+
+def extract_create_table_blocks(sql_text: str) -> list:
+    """
+    Extract (table_name, body) tuples from CREATE TABLE statements.
+    Uses parenthesis-depth tracking to handle nested CHECK/DEFAULT expressions.
+    """
+    result = []
+    sql_nc = re.sub(r'--[^\n]*', '', sql_text)
+    pattern = re.compile(r'CREATE\s+TABLE\s+(\w+)\s*\(', re.IGNORECASE)
+    for m in pattern.finditer(sql_nc):
+        table_name = m.group(1)
+        start = m.end() - 1  # position of opening '('
+        depth = 0
+        end = start
+        while end < len(sql_nc):
+            if sql_nc[end] == '(':
+                depth += 1
+            elif sql_nc[end] == ')':
+                depth -= 1
+                if depth == 0:
+                    break
+            end += 1
+        body = sql_nc[start + 1:end]
+        result.append((table_name, body))
+    return result
+
+
+def _split_csv_depth_aware(text: str) -> list:
+    """Split text on commas, respecting parenthesis depth (ignores commas inside parens)."""
+    parts = []
+    depth = 0
+    current = []
+    for ch in text:
+        if ch == '(':
+            depth += 1
+            current.append(ch)
+        elif ch == ')':
+            depth -= 1
+            current.append(ch)
+        elif ch == ',' and depth == 0:
+            parts.append(''.join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append(''.join(current).strip())
+    return parts
+
+
+def parse_table_body(body: str) -> dict:
+    """
+    Parse a CREATE TABLE body (between the outer parens) to extract:
+      - columns: {col_name: col_type}
+      - pk: [col_name, ...]
+      - fks: [(col_name, ref_table, ref_col), ...]
+      - unique: [col_name, ...]
+    """
+    parts = _split_csv_depth_aware(body)
+    columns: dict = {}
+    pk_cols: list = []
+    fks: list = []
+    unique_cols: list = []
+
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        # Table-level PRIMARY KEY constraint
+        pk_m = re.match(r'PRIMARY\s+KEY\s*\(([^)]+)\)', part, re.IGNORECASE)
+        if pk_m:
+            pk_cols.extend(c.strip() for c in pk_m.group(1).split(','))
+            continue
+
+        # Table-level named PRIMARY KEY: CONSTRAINT name PRIMARY KEY (cols)
+        named_pk_m = re.match(
+            r'CONSTRAINT\s+\w+\s+PRIMARY\s+KEY\s*\(([^)]+)\)', part, re.IGNORECASE
+        )
+        if named_pk_m:
+            pk_cols.extend(c.strip() for c in named_pk_m.group(1).split(','))
+            continue
+
+        # Table-level UNIQUE constraint (with or without CONSTRAINT name)
+        uq_m = re.match(r'(?:CONSTRAINT\s+\w+\s+)?UNIQUE\s*\(([^)]+)\)', part, re.IGNORECASE)
+        if uq_m:
+            unique_cols.extend(c.strip() for c in uq_m.group(1).split(','))
+            continue
+
+        # Table-level CONSTRAINT FOREIGN KEY — extract the FK reference
+        if re.match(r'CONSTRAINT\s+\w+\s+FOREIGN\s+KEY', part, re.IGNORECASE):
+            fk_m = re.search(
+                r'FOREIGN\s+KEY\s*\(([^)]+)\)\s*REFERENCES\s+(\w+)\s*\(([^)]+)\)',
+                part, re.IGNORECASE
+            )
+            if fk_m:
+                cols = [c.strip() for c in fk_m.group(1).split(',')]
+                ref_table = fk_m.group(2)
+                ref_cols = [c.strip() for c in fk_m.group(3).split(',')]
+                for col, rcol in zip(cols, ref_cols):
+                    fks.append((col, ref_table, rcol))
+            continue
+
+        # Skip other table-level constraint keywords
+        if re.match(r'(CONSTRAINT|CHECK|FOREIGN)\s', part, re.IGNORECASE):
+            continue
+
+        # Column definition: col_name type ...
+        col_m = re.match(r'(\w+)\s+', part)
+        if not col_m:
+            continue
+        col_name = col_m.group(1)
+        if col_name.upper() in ('PRIMARY', 'UNIQUE', 'CHECK', 'FOREIGN', 'CONSTRAINT'):
+            continue
+
+        rest = part[col_m.end():]
+        type_m = re.match(r'(\S+)', rest)
+        col_type = type_m.group(1) if type_m else 'UNKNOWN'
+        columns[col_name] = col_type
+
+        # Inline PRIMARY KEY
+        if re.search(r'\bPRIMARY\s+KEY\b', part, re.IGNORECASE):
+            pk_cols.append(col_name)
+
+        # Inline UNIQUE
+        if re.search(r'\bUNIQUE\b', part, re.IGNORECASE):
+            unique_cols.append(col_name)
+
+        # Inline REFERENCES (schema-unqualified only: REFERENCES table(col))
+        ref_m = re.search(r'REFERENCES\s+(\w+)\s*\((\w+)\)', part, re.IGNORECASE)
+        if ref_m:
+            fks.append((col_name, ref_m.group(1), ref_m.group(2)))
+
+    return {'columns': columns, 'pk': pk_cols, 'fks': fks, 'unique': unique_cols}
+
+
+def extract_alter_add_columns(sql_text: str) -> list:
+    """
+    Extract (table_name, col_name, col_type) tuples from ALTER TABLE ... ADD COLUMN statements.
+    Handles both single-line and multi-line ADD COLUMN clauses.
+    """
+    result = []
+    sql_nc = re.sub(r'--[^\n]*', '', sql_text)
+    # Match: ALTER TABLE tbl ADD COLUMN col_name col_type ...;
+    pattern = re.compile(
+        r'ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)\s+(\S+)',
+        re.IGNORECASE
+    )
+    for m in pattern.finditer(sql_nc):
+        result.append((m.group(1), m.group(2), m.group(3)))
+    return result
+
+
+def build_schema_model(sql_texts: list) -> dict:
+    """
+    Build combined schema from a list of SQL texts executed in order.
+    Returns {table_name: {columns, pk, fks, unique}}.
+    Pre-seeds known Supabase built-in external tables.
+    Also processes ALTER TABLE ADD COLUMN statements so late-added columns
+    are visible to index and FK existence checks.
+    """
+    schema = {
+        'auth.users': {'columns': {'id': 'UUID'}, 'pk': ['id'], 'fks': [], 'unique': []},
+    }
+    for sql_text in sql_texts:
+        # Process CREATE TABLE blocks
+        for table_name, body in extract_create_table_blocks(sql_text):
+            schema[table_name] = parse_table_body(body)
+        # Process ALTER TABLE ADD COLUMN (e.g. columns added after initial CREATE TABLE)
+        for (tbl, col, col_type) in extract_alter_add_columns(sql_text):
+            if tbl in schema:
+                schema[tbl]['columns'][col] = col_type
+            # If table not yet in schema (external), skip silently
+    return schema
+
+
+def extract_indexes_from_sql(sql_text: str) -> list:
+    """
+    Extract (index_name, table_name, [col_or_None]) from CREATE [UNIQUE] INDEX statements.
+    Expression-index columns are represented as None (skip existence check).
+    """
+    sql_nc = re.sub(r'--[^\n]*', '', sql_text)
+    pattern = re.compile(
+        r'CREATE\s+(?:UNIQUE\s+)?INDEX\s+(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)',
+        re.IGNORECASE
+    )
+    indexes = []
+    for m in pattern.finditer(sql_nc):
+        idx_name = m.group(1)
+        tbl_name = m.group(2)
+        cols_raw = m.group(3)
+        col_names = []
+        for part in cols_raw.split(','):
+            part = part.strip()
+            col_names.append(None if '(' in part else part)
+        indexes.append((idx_name, tbl_name, col_names))
+    return indexes
+
+
 def main():
     print("=" * 70)
     print("  LifeBook Migration Static Validator")
@@ -725,6 +924,201 @@ def main():
     check("M0003 has >= 50 GRANT/REVOKE statements",
           m0003_grants >= 50,
           f"found {m0003_grants}")
+
+    # ── Section 14: Semantic Schema Validator ─────────────────────────────────
+    section("14. Semantic Schema Validator (SEM-001 through SEM-012)")
+
+    # Build combined schema from all migrations in execution order
+    all_sqls_list = [sqls['M0001'], sqls['M0002'], sqls['M0002b'], sqls['M0003']]
+    sem_schema = build_schema_model(all_sqls_list)
+
+    # Collect all indexes across all migrations
+    sem_indexes_all = []
+    for lbl in ['M0001', 'M0002', 'M0002b', 'M0003']:
+        sem_indexes_all.extend(extract_indexes_from_sql(sqls[lbl]))
+
+    # Indexes for M0003 only (for SEM-011)
+    m0003_sem_indexes = extract_indexes_from_sql(sqls['M0003'])
+
+    def _is_external_ref(table_name: str) -> bool:
+        """Return True for schema-qualified or known external table references."""
+        return '.' in table_name
+
+    # SEM-001: FK target table exists in combined schema
+    sem001_failures = []
+    for tbl_name, tbl_info in sem_schema.items():
+        for (col, ref_table, ref_col) in tbl_info.get('fks', []):
+            if _is_external_ref(ref_table):
+                continue
+            if ref_table not in sem_schema:
+                sem001_failures.append(f"{tbl_name}.{col} -> {ref_table} (not found)")
+    check("SEM-001: All FK target tables exist in combined schema",
+          len(sem001_failures) == 0,
+          f"missing: {sem001_failures}" if sem001_failures else "all present")
+
+    # SEM-002: FK target column exists in target table
+    sem002_failures = []
+    for tbl_name, tbl_info in sem_schema.items():
+        for (col, ref_table, ref_col) in tbl_info.get('fks', []):
+            if _is_external_ref(ref_table) or ref_table not in sem_schema:
+                continue
+            if ref_col not in sem_schema[ref_table].get('columns', {}):
+                sem002_failures.append(f"{tbl_name}.{col} -> {ref_table}({ref_col}) col not found")
+    check("SEM-002: All FK target columns exist in target table",
+          len(sem002_failures) == 0,
+          f"missing cols: {sem002_failures}" if sem002_failures else "all present")
+
+    # SEM-003: FK target column is PK or has UNIQUE constraint
+    sem003_failures = []
+    for tbl_name, tbl_info in sem_schema.items():
+        for (col, ref_table, ref_col) in tbl_info.get('fks', []):
+            if _is_external_ref(ref_table) or ref_table not in sem_schema:
+                continue
+            ref_info = sem_schema[ref_table]
+            is_pk = ref_col in ref_info.get('pk', [])
+            is_unique = ref_col in ref_info.get('unique', [])
+            if not (is_pk or is_unique):
+                sem003_failures.append(
+                    f"{tbl_name}.{col} -> {ref_table}({ref_col}) not PK/UNIQUE"
+                )
+    check("SEM-003: All FK target columns are PK or UNIQUE in target table",
+          len(sem003_failures) == 0,
+          f"violations: {sem003_failures}" if sem003_failures else "all valid")
+
+    # SEM-004: No REFERENCES persons(id) anywhere in any migration
+    sem004_count = 0
+    for sql_text in all_sqls_list:
+        sem004_count += len(re.findall(
+            r'REFERENCES\s+persons\s*\(\s*id\s*\)', sql_text, re.IGNORECASE
+        ))
+    check("SEM-004: No REFERENCES persons(id) exists anywhere in migrations",
+          sem004_count == 0,
+          f"found {sem004_count} occurrences" if sem004_count else "clean")
+
+    # SEM-005: Simple index column existence (skip expression indexes)
+    sem005_failures = []
+    for (idx_name, tbl_name, col_names) in sem_indexes_all:
+        if tbl_name not in sem_schema:
+            continue
+        tbl_cols = sem_schema[tbl_name].get('columns', {})
+        for col in col_names:
+            if col is None:
+                continue  # expression index — skip
+            if col not in tbl_cols:
+                sem005_failures.append(f"idx {idx_name}: {tbl_name}.{col} not found")
+    check("SEM-005: All simple index columns exist in their target tables",
+          len(sem005_failures) == 0,
+          f"violations: {sem005_failures}" if sem005_failures else "all valid")
+
+    # SEM-006: persons PK is entity_id (not id)
+    persons_sem_info = sem_schema.get('persons', {})
+    persons_sem_pk = persons_sem_info.get('pk', [])
+    check("SEM-006: persons primary key column is entity_id",
+          persons_sem_pk == ['entity_id'],
+          f"pk is: {persons_sem_pk}")
+
+    # SEM-007: person_names.person_id FK → persons(entity_id)
+    pn_sem_info = sem_schema.get('person_names', {})
+    pn_sem_fk_ok = any(
+        col == 'person_id' and ref_table == 'persons' and ref_col == 'entity_id'
+        for col, ref_table, ref_col in pn_sem_info.get('fks', [])
+    )
+    check("SEM-007: person_names.person_id FK targets persons(entity_id)", pn_sem_fk_ok)
+
+    # SEM-008: person_pronouns.person_id FK → persons(entity_id)
+    pp_sem_info = sem_schema.get('person_pronouns', {})
+    pp_sem_fk_ok = any(
+        col == 'person_id' and ref_table == 'persons' and ref_col == 'entity_id'
+        for col, ref_table, ref_col in pp_sem_info.get('fks', [])
+    )
+    check("SEM-008: person_pronouns.person_id FK targets persons(entity_id)", pp_sem_fk_ok)
+
+    # SEM-009: person_gender_descriptors.person_id FK → persons(entity_id)
+    pgd_sem_info = sem_schema.get('person_gender_descriptors', {})
+    pgd_sem_fk_ok = any(
+        col == 'person_id' and ref_table == 'persons' and ref_col == 'entity_id'
+        for col, ref_table, ref_col in pgd_sem_info.get('fks', [])
+    )
+    check("SEM-009: person_gender_descriptors.person_id FK targets persons(entity_id)", pgd_sem_fk_ok)
+
+    # SEM-010: idx_entities_lifebook_id does not exist in any migration
+    sem010_found = any(idx_name == 'idx_entities_lifebook_id' for idx_name, _, _ in sem_indexes_all)
+    check("SEM-010: idx_entities_lifebook_id does not exist in any migration",
+          not sem010_found)
+
+    # SEM-011: Authored CREATE INDEX count in M0003 = 14
+    check("SEM-011: M0003 authored CREATE INDEX count = 14",
+          len(m0003_sem_indexes) == 14,
+          f"found {len(m0003_sem_indexes)}")
+
+    # SEM-012: Total seed count = 488 (M0001=345, M0002=9, M0002b=0, M0003=134)
+    sem_m0001_seeds = sum(get_insert_counts(m0001_stmts).values())
+    sem_m0002_seeds = sum(get_insert_counts(m0002_stmts).values())
+    sem_m0002b_seeds = sum(get_insert_counts(m0002b_stmts).values())
+    sem_m0003_seeds = sum(get_insert_counts(m0003_stmts).values())
+    sem_total_seeds = sem_m0001_seeds + sem_m0002_seeds + sem_m0002b_seeds + sem_m0003_seeds
+    check("SEM-012: Total seed count across all migrations = 488 (345+9+0+134)",
+          sem_total_seeds == 488,
+          f"found {sem_total_seeds} ({sem_m0001_seeds}+{sem_m0002_seeds}"
+          f"+{sem_m0002b_seeds}+{sem_m0003_seeds})")
+
+    # ── Section 15: Regression Tests ──────────────────────────────────────────
+    section("15. Regression Tests — persons entity_id PK (REGR-001 through REGR-010)")
+
+    # REGR-001: persons table has column entity_id
+    check("REGR-001: persons table has column entity_id",
+          'entity_id' in sem_schema.get('persons', {}).get('columns', {}))
+
+    # REGR-002: persons table does NOT have column named 'id'
+    check("REGR-002: persons table does NOT have column named 'id'",
+          'id' not in sem_schema.get('persons', {}).get('columns', {}))
+
+    # REGR-003: persons.entity_id is the PRIMARY KEY
+    check("REGR-003: persons.entity_id is the PRIMARY KEY",
+          sem_schema.get('persons', {}).get('pk', []) == ['entity_id'])
+
+    # REGR-004: persons.entity_id FK targets entities(id)
+    persons_regr_fks = sem_schema.get('persons', {}).get('fks', [])
+    regr004_ok = any(
+        col == 'entity_id' and ref_table == 'entities' and ref_col == 'id'
+        for col, ref_table, ref_col in persons_regr_fks
+    )
+    check("REGR-004: persons.entity_id FK targets entities(id)", regr004_ok)
+
+    # REGR-005: person_names.person_id FK targets persons(entity_id)
+    check("REGR-005: person_names.person_id FK targets persons(entity_id)", pn_sem_fk_ok)
+
+    # REGR-006: person_pronouns.person_id FK targets persons(entity_id)
+    check("REGR-006: person_pronouns.person_id FK targets persons(entity_id)", pp_sem_fk_ok)
+
+    # REGR-007: person_gender_descriptors.person_id FK targets persons(entity_id)
+    check("REGR-007: person_gender_descriptors.person_id FK targets persons(entity_id)", pgd_sem_fk_ok)
+
+    # REGR-008: Zero occurrences of "REFERENCES persons(id)" in any migration SQL file (raw text scan)
+    regr008_count = 0
+    for _, path, _ in MIGRATIONS:
+        raw_text = path.read_text()
+        regr008_count += len(re.findall(
+            r'REFERENCES\s+persons\s*\(\s*id\s*\)', raw_text, re.IGNORECASE
+        ))
+    check("REGR-008: Zero occurrences of 'REFERENCES persons(id)' in any migration file",
+          regr008_count == 0,
+          f"found {regr008_count} occurrences" if regr008_count else "clean")
+
+    # REGR-009: No CREATE INDEX idx_entities_lifebook_id in any migration file
+    # (comment references are intentionally excluded — only live DDL matters)
+    regr009_count = sum(
+        1 for idx_name, _, _ in sem_indexes_all
+        if idx_name == 'idx_entities_lifebook_id'
+    )
+    check("REGR-009: No CREATE INDEX idx_entities_lifebook_id in any migration file",
+          regr009_count == 0,
+          f"found {regr009_count} CREATE INDEX statement(s)" if regr009_count else "clean")
+
+    # REGR-010: Explicit authored CREATE INDEX count in M0003 = 14
+    check("REGR-010: M0003 explicit CREATE INDEX count = 14",
+          len(m0003_sem_indexes) == 14,
+          f"found {len(m0003_sem_indexes)}")
 
     # ── Final Summary ──────────────────────────────────────────────────────────
     section("SUMMARY")

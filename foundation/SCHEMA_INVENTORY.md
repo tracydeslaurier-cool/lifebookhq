@@ -1,5 +1,5 @@
 # LifeBook Schema Inventory
-**Version:** 0.2  
+**Version:** 0.3  
 **Status:** Pre-migration inventory — not SQL  
 **Depends on:** ANCHOR_MODELS.md v0.2, CONTENT_LAYER.md v0.3, CLAIM_PREDICATE_CATALOGUE.md v0.2, GOVERNANCE_MODELS.md, OPERATIONAL_MODELS.md, AI_CONTEXT_BROKER.md, PERSON_ATTRIBUTE_CATALOGUE.md  
 **Produced:** 2026-07-23
@@ -11,6 +11,7 @@
 | 0.1 | 2026-07-23 | Initial inventory; 13 groups; 34-step migration sequence | — |
 | 0.2 | 2026-07-23 | evidence_status and precision_status values defined; stale "required addition" labels cleared; ClaimValueUnit and coordinate_precision added to Group 1; CONTENT_LAYER dependency updated to v0.3; deployment blocker language updated | 0.1 |
 | 0.3 | 2026-07-24 | Added deferred schema objects section for Memory Atmosphere Engine (5 objects; not migration blockers) | — |
+| 0.4 | 2026-07-25 | DisplayPolicy design session complete: row 5.4 renamed AttributeDisplayPolicy → DisplayPolicy (field spec corrected; entity_id removed; no discriminator field); row 5.5 DisplayPolicyRule added; all FK references to AttributeDisplayPolicy updated to display_policies in rows 6.3, 7.1, 7.3, 7.4, 7.5, 7.7, 7.10, 7.11; dependency ordering step 12 updated; steps 24, 26, 27, 29 updated | 0.3 |
 
 This document is the dependency-ordered inventory of all tables required before the Supabase migration is produced. For each table it records: primary key, foreign keys, authoritative vs. cached fields, LifeBook scope, access classification, legal or governance dependencies, whether the table may be deployed disabled, and unresolved questions.
 
@@ -125,7 +126,8 @@ Tables from GOVERNANCE_MODELS.md. Full field definitions there; this inventory r
 | 5.1 | `AuthorityAssignment` | `id` UUID | `lifebook_id` → LifeBook (nullable), `entity_id` → Entity, `assigned_to_user_id` → user_profiles, `assigned_by_id` → user_profiles | All authoritative | Optional | Steward + admin | Legal authority types (guardian, executor, representative) must align with jurisdiction; CA-QC + EU: legal review required | No | Succession_behaviour and coordination_rule fields must be enforced by application logic or triggers |
 | 5.2 | `ApprovalPolicy` | `id` UUID | `lifebook_id` → LifeBook (nullable), `entity_id` → Entity (nullable), `jurisdiction_id` → Jurisdiction (nullable) | All authoritative | Optional | Steward + admin | None | No | lifecycle_status transitions must be trigger-enforced |
 | 5.3 | `ConflictResolutionPolicy` | `id` UUID | `lifebook_id` → LifeBook | All authoritative | Yes | Steward + admin | None | No | None |
-| 5.4 | `AttributeDisplayPolicy` | `id` UUID | `entity_id` → Entity, `lifebook_id` → LifeBook (nullable) | All authoritative | Optional | Steward | None | No | None |
+| 5.4 | `DisplayPolicy` | `id` UUID | `lifebook_id` → LifeBook (nullable), `set_by_role` → authority_roles(code) (from 0001), `set_by_id` → user_profiles (nullable), `created_by_id` → user_profiles (nullable), `supersedes_policy_id` → self (nullable), `approval_record_id` → approval_records(id) — **deferred FK** | All authoritative | Optional | set_by_role governs; see DISPLAY_POLICY_MODEL.md §2.2 | None | No | Authority model for content records — confirm GOVERNANCE_MODELS.md coverage; draft deletion safeguard mechanism — see DISPLAY_POLICY_MODEL.md §10.2 |
+| 5.5 | `DisplayPolicyRule` | `id` UUID | `display_policy_id` → display_policies (NOT NULL), `display_context_code` → display_contexts(code) ON UPDATE RESTRICT ON DELETE RESTRICT (migration 0002) | All authoritative | Via DisplayPolicy | Via DisplayPolicy | None | No | UNIQUE (display_policy_id, display_context_code) |
 
 ---
 
@@ -135,7 +137,7 @@ Tables from GOVERNANCE_MODELS.md. Full field definitions there; this inventory r
 |---|---|---|---|---|---|---|---|---|---|
 | 6.1 | `ClaimPredicate` | `id` UUID | `inverse_predicate_id` → self (nullable), `replaced_by_predicate_id` → self (nullable) | All authoritative | Global (seed/config table) | Admin for write; public for read (predicate codes are not sensitive) | None | No | Full seed catalogue not yet written; must be complete before migration |
 | 6.2 | `RelationshipType` | `id` UUID | `replaced_by_type_id` → self (nullable) | All authoritative | Global (seed/config table) | Admin for write; public for read | None | No | Full seed catalogue not yet written; must be complete before migration |
-| 6.3 | `Relationship` | `id` UUID | `lifebook_id` → LifeBook, `relationship_type_id` → RelationshipType, `entity_a_id` → Entity, `entity_b_id` → Entity, `display_policy_id` → AttributeDisplayPolicy (nullable), `context_manifest_id` → ContextManifest (nullable) | All authoritative | Yes | `access_classification` field | None | No | `role_a` / `role_b` are currently free-text; consider whether a controlled vocabulary is needed |
+| 6.3 | `Relationship` | `id` UUID | `lifebook_id` → LifeBook, `relationship_type_id` → RelationshipType, `entity_a_id` → Entity, `entity_b_id` → Entity, `display_policy_id` → display_policies (nullable), `context_manifest_id` → ContextManifest (nullable), `superseded_by_relationship_id` → self (nullable) | All authoritative | Yes | `access_classification` field | None | No | `role_a` / `role_b` are currently free-text; consider whether a controlled vocabulary is needed; inline nullable self-FK mirrors Claims supersession model (DP Decision 2026-07-25) |
 
 ---
 
@@ -143,17 +145,17 @@ Tables from GOVERNANCE_MODELS.md. Full field definitions there; this inventory r
 
 | # | Table | PK | Key FKs | Auth/Cached | LifeBook scope | Access classification | Legal / governance | Deploy-disabled | Open questions |
 |---|---|---|---|---|---|---|---|---|---|
-| 7.1 | `Claim` | `id` UUID | `lifebook_id` → LifeBook, `predicate_id` → ClaimPredicate, `subject_entity_id` → Entity, `object_entity_id` → Entity (nullable), `display_policy_id` → AttributeDisplayPolicy (nullable), `superseded_by_claim_id` → self (nullable), `context_manifest_id` → ContextManifest (nullable), `created_by_id` → user_profiles | `claim_text_cached` = cached; all others authoritative | Yes | `access_classification` field | Right-to-erasure: retracted claims must be structurally retained with values erased | No | claim_text_cached generation strategy (at-presentation vs. stored cache) to be decided |
+| 7.1 | `Claim` | `id` UUID | `lifebook_id` → LifeBook, `predicate_id` → ClaimPredicate, `subject_entity_id` → Entity, `object_entity_id` → Entity (nullable), `display_policy_id` → display_policies (nullable), `superseded_by_claim_id` → self (nullable), `context_manifest_id` → ContextManifest (nullable), `created_by_id` → user_profiles | `claim_text_cached` = cached; all others authoritative | Yes | `access_classification` field | Right-to-erasure: retracted claims must be structurally retained with values erased | No | claim_text_cached generation strategy (at-presentation vs. stored cache) to be decided |
 | 7.2 | `ClaimEvidence` | `id` UUID | `claim_id` → Claim, `source_id` → Source, `source_derivative_id` → SourceDerivative (nullable), `added_by_id` → user_profiles | All authoritative | Via Claim | Via Claim | None | No | None |
-| 7.3 | `Narrative` | `id` UUID | `lifebook_id` → LifeBook, `composed_by_entity_id` → Entity (nullable), `composed_at_location_entity_id` → Entity (nullable), `display_policy_id` → AttributeDisplayPolicy (nullable), `parent_narrative_id` → self (nullable), `context_manifest_id` → ContextManifest (nullable), `invalidation_event_id` → AccessPolicyChangedEvent (nullable), `created_by_id` → user_profiles | All authoritative | Yes | `access_classification` field | Community account narratives require community authorization | Deploy-disabled for `community_account` type without community auth | translation_metadata JSONB structure must be documented as a schema fixture |
-| 7.4 | `NarrativeEntity` | `id` UUID | `narrative_id` → Narrative, `entity_id` → Entity, `display_policy_id` → AttributeDisplayPolicy (nullable), `added_by_id` → user_profiles | All authoritative | Via Narrative | Via Narrative + `is_restricted_mention` | None | No | None |
-| 7.5 | `Source` | `id` UUID | `lifebook_id` → LifeBook (NOT NULL), `originating_entity_id` → Entity (nullable), `holding_entity_id` → Entity (nullable), `jurisdiction_id` → Jurisdiction (nullable), `display_policy_id` → AttributeDisplayPolicy (nullable), `created_by_id` → user_profiles | All authoritative | Yes (NOT NULL) | `access_classification` field | None | No | None |
+| 7.3 | `Narrative` | `id` UUID | `lifebook_id` → LifeBook, `composed_by_entity_id` → Entity (nullable), `composed_at_location_entity_id` → Entity (nullable), `display_policy_id` → display_policies (nullable), `parent_narrative_id` → self (nullable), `context_manifest_id` → ContextManifest (nullable), `invalidation_event_id` → AccessPolicyChangedEvent (nullable), `created_by_id` → user_profiles | All authoritative | Yes | `access_classification` field | Community account narratives require community authorization | Deploy-disabled for `community_account` type without community auth | translation_metadata JSONB structure must be documented as a schema fixture |
+| 7.4 | `NarrativeEntity` | `id` UUID | `narrative_id` → Narrative, `entity_id` → Entity, `display_policy_id` → display_policies (nullable), `added_by_id` → user_profiles | All authoritative | Via Narrative | Via Narrative + `is_restricted_mention` | None | No | None |
+| 7.5 | `Source` | `id` UUID | `lifebook_id` → LifeBook (NOT NULL), `originating_entity_id` → Entity (nullable), `holding_entity_id` → Entity (nullable), `jurisdiction_id` → Jurisdiction (nullable), `display_policy_id` → display_policies (nullable), `created_by_id` → user_profiles | All authoritative | Yes (NOT NULL) | `access_classification` field | None | No | None |
 | 7.6 | `SourceDerivative` | `id` UUID | `source_id` → Source, `context_manifest_id` → ContextManifest (nullable), `invalidation_event_id` → AccessPolicyChangedEvent (nullable), `created_by_id` → user_profiles | All authoritative | Via Source | `access_classification` field | Right-to-erasure: invalidated derivatives must not be recoverable | No | Large derivative content (audio/video transcripts) should use FileStorageReference rather than inline text |
-| 7.7 | `Artifact` | `id` UUID | `lifebook_id` → LifeBook, `creator_entity_id` → Entity (nullable), `current_holder_entity_id` → Entity (nullable), `original_location_entity_id` → Entity (nullable), `file_storage_reference_id` → FileStorageReference (nullable), `display_policy_id` → AttributeDisplayPolicy (nullable), `created_by_id` → user_profiles | All authoritative | Yes | `access_classification` field | None | No | None |
+| 7.7 | `Artifact` | `id` UUID | `lifebook_id` → LifeBook, `creator_entity_id` → Entity (nullable), `current_holder_entity_id` → Entity (nullable), `original_location_entity_id` → Entity (nullable), `file_storage_reference_id` → FileStorageReference (nullable), `display_policy_id` → display_policies (nullable), `created_by_id` → user_profiles | All authoritative | Yes | `access_classification` field | None | No | None |
 | 7.8 | `FileStorageReference` | `id` UUID | `parent_storage_reference_id` → self (nullable), `created_by_id` → user_profiles | All authoritative | Global (referenced by Artifact; no direct lifebook_id) | `access_classification` field | None | No | Signed URL generation service interface not yet specified |
 | 7.9 | `ArtifactSourceLink` | `id` UUID | `artifact_id` → Artifact, `source_id` → Source, `created_by_id` → user_profiles | All authoritative | Via Artifact + Source | Via more restrictive of Artifact or Source | None | No | None |
-| 7.10 | `Event` | `id` UUID | `lifebook_id` → LifeBook, `primary_location_entity_id` → Entity (nullable), `organizing_entity_id` → Entity (nullable), `series_entity_id` → Entity (nullable), `display_policy_id` → AttributeDisplayPolicy (nullable), `created_by_id` → user_profiles | All authoritative | Yes | `access_classification` field | None | No | Claim suggestion workflow not yet designed |
-| 7.11 | `EventParticipant` | `id` UUID | `event_id` → Event, `entity_id` → Entity, `display_policy_id` → AttributeDisplayPolicy (nullable), `added_by_id` → user_profiles | All authoritative | Via Event | `access_classification` field | None | No | None |
+| 7.10 | `Event` | `id` UUID | `lifebook_id` → LifeBook, `primary_location_entity_id` → Entity (nullable), `organizing_entity_id` → Entity (nullable), `series_entity_id` → Entity (nullable), `display_policy_id` → display_policies (nullable), `created_by_id` → user_profiles, `source_claim_id` → claims (nullable) | All authoritative | Yes | `access_classification` field | None | No | `source_claim_id` records provenance when Event is generated from a Claim; NULL for manually authored Events (DP Decision 2026-07-25) |
+| 7.11 | `EventParticipant` | `id` UUID | `event_id` → Event, `entity_id` → Entity, `display_policy_id` → display_policies (nullable), `added_by_id` → user_profiles | All authoritative | Via Event | `access_classification` field | None | No | None |
 
 ---
 
@@ -263,7 +265,7 @@ The migration must proceed in this order. A table in a later group must not be c
 9. UserPersonLink (2.3) — depends on user_profiles, Entity (Person)
 10. LifeBookEntity (4.2) — depends on LifeBook, Entity
 11. LifeBookPersonContext (4.3) — depends on LifeBookEntity; deferred constraint trigger added after
-12. AuthorityAssignment, ApprovalPolicy, ConflictResolutionPolicy, AttributeDisplayPolicy (5.1–5.4) — depend on LifeBook, Entity, Jurisdiction
+12. AuthorityAssignment, ApprovalPolicy, ConflictResolutionPolicy (5.1–5.3), DisplayPolicy (5.4), DisplayPolicyRule (5.5) — DisplayPolicy depends on LifeBook (nullable), user_profiles, authority_roles (from migration 0001); DisplayPolicyRule depends on DisplayPolicy and display_contexts (from migration 0002)
 13. EscalationPolicy, EscalationRecord, ContestRecord (10.2–10.4)
 14. ClaimPredicate (6.1) — seed data required immediately after
 15. RelationshipType (6.2) — seed data required immediately after
@@ -275,12 +277,12 @@ The migration must proceed in this order. A table in a later group must not be c
 21. ContextManifest (8.2) — depends on LifeBook, AgentRegistry, user_profiles
 22. AccessPolicyChangedEvent (8.4 / 10.1)
 23. SourceDerivative (7.6) — depends on Source, ContextManifest, AccessPolicyChangedEvent
-24. Claim (7.1) — depends on LifeBook, ClaimPredicate, Entity, AttributeDisplayPolicy, ContextManifest
+24. Claim (7.1) — depends on LifeBook, ClaimPredicate, Entity, display_policies, ContextManifest
 25. ClaimEvidence (7.2) — depends on Claim, Source, SourceDerivative
-26. Relationship (6.3) — depends on LifeBook, RelationshipType, Entity, AttributeDisplayPolicy
-27. Narrative (7.3) — depends on LifeBook, Entity, AttributeDisplayPolicy, ContextManifest, AccessPolicyChangedEvent
+26. Relationship (6.3) — depends on LifeBook, RelationshipType, Entity, display_policies
+27. Narrative (7.3) — depends on LifeBook, Entity, display_policies, ContextManifest, AccessPolicyChangedEvent
 28. NarrativeEntity (7.4) — depends on Narrative, Entity
-29. Event (7.10) — depends on LifeBook, Entity, AttributeDisplayPolicy
+29. Event (7.10) — depends on LifeBook, Entity, display_policies
 30. EventParticipant (7.11) — depends on Event, Entity
 31. CrossLifeBookAuthorization (9.1) — depends on LifeBook, Entity, ApprovalPolicy
 32. LifeBookSourceAccess (9.2) — depends on Source, LifeBook, CrossLifeBookAuthorization

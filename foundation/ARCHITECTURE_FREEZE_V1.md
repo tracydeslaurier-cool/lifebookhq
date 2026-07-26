@@ -1,5 +1,5 @@
 # LifeBook Architecture Freeze — Version 1
-**Version:** 1.1  
+**Version:** 1.2  
 **Status:** Frozen — no architectural principle in this document may be modified without a formal Discovery Partner revision session  
 **Produced:** 2026-07-23  
 **Produced by:** Architecture session — Discovery Partner + Claude
@@ -10,6 +10,7 @@
 |---|---|---|---|
 | 1.0 | 2026-07-23 | Initial freeze; governed documents incorrectly classified GOVERNANCE_MODELS.md, OPERATIONAL_MODELS.md, and PERSON_ATTRIBUTE_CATALOGUE.md as "not yet written" | — |
 | 1.1 | 2026-07-23 | Corrected document register based on actual file content; added APPROVAL_INSTANCE_MODEL.md; documented design gaps (ApprovalRecord, AuthorityBasisRecord, PersonName confidence normalization); resolved LifeBook jurisdiction and MergeRecord approval conflicts | 1.0 |
+| 1.2 | 2026-07-25 | Closed §5 gaps: AuthorityBasisRecord (G1) resolved — eliminated by GOVERNANCE_MODELS.md §2, replaced by nullable `basis_claim_id` FK + `authority_basis_type` enum on AuthorityAssignment; PersonName confidence normalization (G2) resolved — PERSON_ATTRIBUTE_CATALOGUE.md v0.2 applies four separate status fields; AttributeDisplayPolicy gap remains open — design session required before migration | 1.1 |
 
 This document records the frozen state of LifeBook's v1 architecture. It is not a design document — it does not define fields or relationships. It records what has been decided, by whom, and at what version. Any future session proposing to change an item in §3 must explicitly cite this document and provide a rationale accepted by the Discovery Partner.
 
@@ -147,6 +148,6 @@ The following items are not deferred to v2 — they must be designed before the 
 | Gap | Affects | Current state |
 |---|---|---|
 | `ApprovalRecord` model | MergeRecord (NOT NULL FK), CrossLifeBookAuthorization (NOT NULL FKs × 3) | **Resolved** — APPROVAL_INSTANCE_MODEL.md v1.0 |
-| `AuthorityBasisRecord` model | AuthorityAssignment.authority_basis_record_id (nullable FK) | Not yet designed — blocks AuthorityAssignment migration |
-| `PersonName.confidence` normalization | PersonName, PersonNameDerivative tables | PERSON_ATTRIBUTE_CATALOGUE.md must replace combined `confidence` enum with separate `evidence_status`, `dispute_status`, and `precision_status` fields per CONTENT_LAYER.md v0.3 §18.5 |
-| AttributeDisplayPolicy field-level definition | PersonName, PersonPronouns, PersonGenderDescriptor (all reference display policies) | Field definition exists in schema inventory (row 5.4) as sparse; confirm fields are sufficient before migration |
+| `AuthorityBasisRecord` model | AuthorityAssignment | **Resolved (G1) — 2026-07-25.** AuthorityBasisRecord eliminated by GOVERNANCE_MODELS.md §2. AuthorityAssignment carries nullable `basis_claim_id` (FK → claims) and `authority_basis_type` enum directly. No separate AuthorityBasisRecord table. DP-authorized in PRE_SQL_READINESS_REVIEW.md §3.4. |
+| `PersonName.confidence` normalization | PersonName, PersonNameDerivative tables | **Resolved (G2) — 2026-07-25.** PERSON_ATTRIBUTE_CATALOGUE.md v0.2 replaces combined `confidence` with four separate fields: `evidence_status`, `dispute_status`, `precision_status`, `review_status`. PersonNameDerivative carries independent `review_status` (not inherited from parent). |
+| AttributeDisplayPolicy field-level definition | PersonName, PersonPronouns, PersonGenderDescriptor (all reference display policies) | **Open — design session required.** Sparse definition in SCHEMA_INVENTORY.md row 5.4 is insufficient for migration. No SQL may be written for `attribute_display_policies` or for tables that FK to it until this session is completed. See PRE_SQL_READINESS_REVIEW.md §3.1 and §4.3. |

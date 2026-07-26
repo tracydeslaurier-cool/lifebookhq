@@ -2,21 +2,24 @@
 ## LifeBook HQ — Migrations 0001, 0002, 0002b (application_roles), 0003
 
 **Report date:** 2026-07-26  
-**Validator:** validate_migrations.py v1.1 (pglast v8.4, AST-aware) — extended with M0002b and M0001 seed-total checks  
+**Validator:** validate_migrations.py v1.2 (pglast v8.4, AST-aware) — extended with M0002b, M0001 seed-total checks, Section 14 semantic schema validator (SEM-001–SEM-012), Section 15 regression tests (REGR-001–REGR-010)  
 **Migration boundary correction applied:** Yes — claim_value_units removed from Migration 0003; owned by Migration 0001  
 **Role correction applied (2026-07-26):** Yes — agent_service, system_service, admin, governance_functions created by new Migration 0002b (20260726083202_application_roles.sql); CREATE ROLE removed from core_schema; core_schema renamed to 20260726083203_core_schema.sql  
 **M0001 seed count corrected (2026-07-26):** 338 → 345 (live-confirmed from disposable project)  
-**DP authorization:** Boundary correction approved; role correction authorized 2026-07-26; static validation phase authorized  
+**FK defect correction applied (2026-07-26):** Yes — REFERENCES persons(id) corrected to REFERENCES persons(entity_id) in person_names, person_pronouns, person_gender_descriptors; RLS policy joins p.id corrected to p.entity_id  
+**DP authorization:** Boundary correction approved; role correction authorized 2026-07-26; static validation phase authorized; FK defect correction authorized 2026-07-26  
 
 ---
 
 ## Executive Result
 
-**STATIC VALIDATION PASSED — 112/112 checks, 0 failures, 0 undocumented dependencies.**
+**STATIC VALIDATION PASSED — 134/134 checks, 0 failures, 0 undocumented dependencies.**
 
-All four migration files parse cleanly with pglast. No duplicate schema objects exist across migrations. All foreign key targets are accounted for. The role correction (four NOLOGIN group roles extracted into dedicated migration 0002b) is confirmed in force and validated by machine check. The M0001 live seed count (345) matches the validator check. The validator script self-reports zero failures with no manual interpretation required.
+All four migration files parse cleanly with pglast. No duplicate schema objects exist across migrations. All foreign key targets are accounted for. The role correction (four NOLOGIN group roles extracted into dedicated migration 0002b) is confirmed in force and validated by machine check. The M0001 live seed count (345) matches the validator check. The FK defect (REFERENCES persons(id) → persons(entity_id)) has been corrected in M0003 and validated by new semantic and regression check sections. The validator script self-reports zero failures with no manual interpretation required.
 
-> **Index count correction (2026-07-26):** `idx_entities_lifebook_id` removed from M0003 — the `entities` table has no `lifebook_id` column; lifebook scoping is via the `lifebook_entities` junction table. This was stale implementation drift. Index count reduced from 15 to 14; check count reduced from 113 to 112.
+> **Index count correction (2026-07-26):** `idx_entities_lifebook_id` removed from M0003 — the `entities` table has no `lifebook_id` column; lifebook scoping is via the `lifebook_entities` junction table. This was stale implementation drift. Index count reduced from 15 to 14.
+
+> **FK defect correction (2026-07-26):** `REFERENCES persons(id)` corrected to `REFERENCES persons(entity_id)` in `person_names`, `person_pronouns`, and `person_gender_descriptors`. RLS policy joins using `p.id` where `p` aliases `persons` corrected to `p.entity_id`. Detection: live FK error against disposable project `tmvtdvrggmoiidvxdjzr`. Root cause: stale schema-reference defect — entity-typed persons PK refactor. Check count increased from 112 to 134 (22 new semantic/regression checks added).
 
 > **Limitation statement:** Static validation cannot prove PostgreSQL runtime execution, transactional rollback, trigger behaviour, deferred-constraint behaviour, or RLS behaviour under non-superuser roles. The findings in this report reflect AST-level and text-structural analysis only.
 
@@ -302,11 +305,12 @@ Migration files must not be modified after this manifest without regenerating th
 | M0001 | `20260724153745_types_and_vocabularies.sql` | `10299654bc6d58ede4f685fbe2642149498ef08e652d3ea98231e449bada9f93` | 1,761 | 81,844 |
 | M0002 | `20260726083201_predicate_governance_types.sql` | `1022fd2aa57410a005da4502dc64a0ba07fc363c0f2d45d771bd39d458178656` | 207 | 8,576 |
 | M0002b | `20260726083202_application_roles.sql` | `24daadbeef3afd448a5637a5a0c5cec28fea23dd48948a9f1203c15e9f064d24` | 186 | 7,885 |
-| M0003 | `20260726083203_core_schema.sql` | `fbd60d9f5208be8b6af567cc341a80e7a4ccfc67c5c909a5da541609f395a60a` | 2,872 | 179,606 |
+| M0003 | `20260726083203_core_schema.sql` | `dadf430271df142092013d1435e7ec0008130fde28ddb33e650bc9758f00abce` | 2,872 | 179,683 |
 
-**Note on M0003 checksum change:** M0003 has undergone two corrections since initial authoring:
+**Note on M0003 checksum change:** M0003 has undergone three corrections since initial authoring:
 1. Renamed from `20260726083201_core_schema.sql`; header updated; `CREATE ROLE governance_functions` removed (SHA-256 was: `9770d0b34398047ded53c447f6364842582addb1d54e2d2352ddd28319231c41`, then: `e254372a6c6658ea87b68ad4b747a974e632b16ad9632eb0eefa060fac916110`).
-2. Removed stale `idx_entities_lifebook_id` index 2026-07-26 — entities has no `lifebook_id` column; index count reduced 15 → 14; check count 113 → 112.
+2. Removed stale `idx_entities_lifebook_id` index 2026-07-26 — entities has no `lifebook_id` column; index count reduced 15 → 14 (SHA-256: `fbd60d9f5208be8b6af567cc341a80e7a4ccfc67c5c909a5da541609f395a60a`, 179,606 bytes).
+3. FK defect correction 2026-07-26 — REFERENCES persons(id) → persons(entity_id) in 3 tables; RLS joins p.id → p.entity_id in 8 locations. Line count unchanged (2,872); byte count 179,606 → 179,683.
 The checksum above reflects the fully corrected file.
 
 **Git working tree state:** M0001 and M0002 committed (hash ee8dd0f and prior). M0002b and M0003 (renamed) require commit — Task #141.
@@ -315,7 +319,25 @@ The checksum above reflects the fully corrected file.
 
 ---
 
-## 12. Known Environment Limitation
+## 12. Defect History
+
+### DEF-0001 — REFERENCES persons(id) in person_names, person_pronouns, person_gender_descriptors
+
+| Field | Detail |
+|---|---|
+| Defect ID | DEF-0001 |
+| Defect | `REFERENCES persons(id)` in `person_names`, `person_pronouns`, `person_gender_descriptors`; `p.id` join in RLS policies where `p` aliases `persons` table |
+| Detection | Live FK error against disposable Supabase project `tmvtdvrggmoiidvxdjzr` (2026-07-26) |
+| Root cause | Stale schema-reference defect — entity-typed `persons` PK refactor; `persons.entity_id` is the PK; `persons.id` does not exist |
+| Fix applied | Changed `REFERENCES persons(id)` to `REFERENCES persons(entity_id)` in 3 FK column definitions; changed 8 RLS join/filter expressions from `p.id` to `p.entity_id` |
+| Files modified | `supabase/migrations/20260726083203_core_schema.sql` only |
+| Locations fixed | Lines 1056, 1109, 1128 (FK definitions); lines 2337, 2343, 2357, 2363, 2377, 2383, 2395, 2406 (RLS joins) |
+| Static validation gap | pglast AST parsing cannot resolve FK target column existence without live schema state; the defect was present in the file since authoring and passed all prior static checks |
+| Gap closure | Section 14 semantic schema validator (SEM-001–SEM-012) and Section 15 regression tests (REGR-001–REGR-010) added to `validate_migrations.py` to close this gap; SEM-002, SEM-004, SEM-007–009, REGR-005–008 directly guard against recurrence |
+
+---
+
+## 13. Known Environment Limitation
 
 Live execution of Migration 0003 has not been performed. The following constraints apply:
 
@@ -329,13 +351,13 @@ Live execution of Migration 0003 has not been performed. The following constrain
 
 ---
 
-## 13. Available Paths for Live Execution Validation
+## 14. Available Paths for Live Execution Validation
 
 Live execution is planned against disposable project `tmvtdvrggmoiidvxdjzr` (ca-central-1, PostgreSQL 17.6.1.147). M0001 and M0002 are applied. Next step is to apply M0002b (application_roles), then M0003 (core_schema), and run the full trigger/RLS/constraint test matrix per the 17-step plan authorized by DP 2026-07-26.
 
 ---
 
-## 14. Final Recommendation
+## 15. Final Recommendation
 
 **Proceed to live execution on disposable project.** Apply M0002b, then M0003. All static checks pass. The migration set is internally consistent, dependency-complete, and role-correct. No further static blockers exist.
 
@@ -343,4 +365,4 @@ The DP-authorized stop condition (missing application roles) has been resolved b
 
 ---
 
-*FINAL_STATIC_VALIDATION_REPORT.md — LifeBook HQ — 2026-07-26 (v3, post-role-correction, post-index-correction)*
+*FINAL_STATIC_VALIDATION_REPORT.md — LifeBook HQ — 2026-07-26 (v4, post-role-correction, post-index-correction, post-FK-defect-correction DEF-0001)*

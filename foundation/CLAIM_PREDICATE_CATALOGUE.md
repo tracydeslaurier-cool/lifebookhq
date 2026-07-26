@@ -2189,13 +2189,13 @@ The following types of assertions are handled by dedicated mechanisms and must n
 | Family | Predicate count |
 |---|---|
 | 1. Identity and naming | 4 |
-| 2. Vital events | 16 (`in_civil_partnership_with` added) |
+| 2. Vital events | 17 (`in_civil_partnership_with` added; count corrected from 16) |
 | 3. Residence and location | 4 |
 | 4. Migration and travel | 9 |
 | 5. Education | 4 |
 | 6. Employment and occupation | 6 (`apprenticed_to` added) |
 | 7. Military service | 6 |
-| 8. Organizational and community participation | 8 (`associated_with` added) |
+| 8. Organizational and community participation | 7 (`associated_with` added; count corrected from 8) |
 | 9. Document appearance | 3 |
 | 10. Property, custody, and ownership | 5 |
 | 11. Titles and honours | 4 |

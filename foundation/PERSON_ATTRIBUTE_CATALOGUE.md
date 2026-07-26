@@ -1,7 +1,15 @@
 # LifeBook PersonAttribute Catalogue
-**Version:** 0.1 Draft  
-**Status:** Pre-schema design document  
+**Version:** 0.2 Draft  
+**Status:** Pre-schema design document — G2 blocker resolved (confidence normalization applied 2026-07-25)  
 **Produced:** 2026-07-22  
+**Revised:** 2026-07-25
+
+### Revision history
+
+| Version | Date | Summary |
+|---|---|---|
+| 0.1 | 2026-07-22 | Initial catalogue; all four person attribute types defined |
+| 0.2 | 2026-07-25 | G2 blocker resolved: replaced combined `confidence` enum on PersonName and PersonNameDerivative with separate `evidence_status`, `dispute_status`, `precision_status`, and `review_status` fields per GOVERNANCE_MODELS.md §1 and CONTENT_LAYER.md §18.5; `review_status` on PersonNameDerivative clarified as an independent field (not inherited from parent) — a derivative may remain pending after the parent name is approved |  
 
 ---
 
@@ -33,7 +41,7 @@ No hierarchy scalar. Every attribute record references:
 
 ### Display contexts
 
-Not a bitmask. Each attribute record has relational `AttributeDisplayPolicy` records, one per context (`public_ui`, `family_ui`, `steward_ui`, `historical_record`, `ordinary_search`, `identity_resolution_search`, `default_export`, `steward_export`, `ai_generation`). Each policy record specifies permitted/denied and any conditions.
+Not a bitmask. Each governed attribute record carries a nullable `display_policy_id` FK referencing `display_policies`. The policy contains one `DisplayPolicyRule` per applicable display context. The nine governed display contexts are: `public_ui`, `family_ui`, `steward_ui`, `historical_record`, `ordinary_search`, `identity_resolution_search`, `default_export`, `steward_export`, `ai_generation`. Each rule specifies `allow`, `deny`, or `conditional` for its context. See DISPLAY_POLICY_MODEL.md for the full two-table specification, lifecycle rules, and default evaluation rules.
 
 ---
 
@@ -58,9 +66,12 @@ Not a bitmask. Each attribute record has relational `AttributeDisplayPolicy` rec
 | `effective_until` | Date or approximate date; nullable (null = currently active) |
 | `asserted_by_role` | Role of asserting party |
 | `asserted_by_id` | FK to User/Steward record |
-| `legal_basis` | Nullable text (e.g., "Marriage certificate CA-ON-1987-04-12") |
+| `legal_basis` | Nullable text (e.g., "Marriage certificate CA-ON-1987-04-12"); operational notation distinct from Claim evidentiary content |
 | `source_id` | FK to Source record; nullable |
-| `confidence` | Enum: asserted / inferred / supported / corroborated / approximate / disputed / contradicted / unresolved |
+| `evidence_status` | Enum: `unreviewed` / `asserted` / `inferred` / `supported` / `corroborated` — see GOVERNANCE_MODELS.md §1.1. AI agents may set up to `inferred`; elevation to `supported` or `corroborated` requires human approval under the applicable ApprovalPolicy |
+| `precision_status` | Enum: `exact` / `approximate` / `range` / `unknown` — see GOVERNANCE_MODELS.md §1.2 |
+| `dispute_status` | Enum: `uncontested` / `disputed` / `contradicted` / `retracted` / `superseded` — see GOVERNANCE_MODELS.md §1.3. AI must not independently change dispute_status |
+| `review_status` | Enum: `pending` / `human_reviewed` / `policy_approved` — see GOVERNANCE_MODELS.md §1.4. A PersonName record may not be used as the basis for a consequential action unless review_status is `policy_approved` for that action type |
 | `approval_policy_id` | FK to ApprovalPolicy |
 | `conflict_resolution_policy_id` | FK to ConflictResolutionPolicy |
 | `imposition_context` | Nullable text; used for `institutional` type to record that name was imposed |
@@ -354,9 +365,12 @@ Derivative records inherit all sensitivity, display, search, and export policies
 | `derivation_method` | Enum: `subject_provided` · `community_provided` · `automated` · `scholarly` |
 | `derivation_tool` | Nullable (for automated: tool name and version) |
 | `derivation_notes` | Transliteration standard used (e.g., ISO 9, BGN/PCGN, Pinyin) |
-| `confidence` | Inherits parent confidence as floor; may be lower if automated |
+| `evidence_status` | Inherits parent `evidence_status` as floor; may be lower if `derivation_method = automated`. Automated derivations begin at `inferred` and may not be promoted to `supported` without human review — see GOVERNANCE_MODELS.md §1.1 |
+| `precision_status` | Inherits parent `precision_status` as a floor; reflects accuracy of the transliteration or translation specifically — see GOVERNANCE_MODELS.md §1.2 |
+| `dispute_status` | Inherits parent `dispute_status` as a floor; must be updated if the parent name's dispute_status changes — see GOVERNANCE_MODELS.md §1.3 |
+| `review_status` | **Independent field — not inherited from parent.** A derivative name has its own review lifecycle: `pending` / `human_reviewed` / `policy_approved`. A derivative may remain `pending` after the parent name reaches `policy_approved` — for example, an automated transliteration of a newly approved preferred name requires independent human review before it may be used in display or export. The parent's `review_status = policy_approved` does not propagate to derivatives; each derivative record must reach `policy_approved` independently under the applicable ApprovalPolicy — see GOVERNANCE_MODELS.md §1.4 |
 
-**Transliteration policy note:** A transliteration of an Indigenous or ceremonial name is as sensitive as the original. Automated transliterations must be flagged with confidence `inferred` and tool metadata, and must not be promoted to `supported` without human review.
+**Transliteration policy note:** A transliteration of an Indigenous or ceremonial name is as sensitive as the original. Automated transliterations must be flagged with `evidence_status = inferred` and tool metadata, and must not be promoted to `evidence_status = supported` without human review. The independent `review_status` on each derivative record is what enforces this — a derivative cannot be used until it has been independently reviewed, regardless of the parent name's status.
 
 **Translation policy note:** Meaning-based name translations may be interpretive. Multiple valid translations may exist. Translation records must record the translator's role and methodology.
 
@@ -446,7 +460,7 @@ Derivative records inherit all sensitivity, display, search, and export policies
 
 5. **AI generation rule for historical narratives:** When a narrative was composed at a time when different pronouns were appropriate, should the AI regenerate it using current pronouns? Current recommendation is no — the original narrative is preserved as composed; any AI-generated content uses current pronouns. This rule needs explicit documentation and a content policy.
 
-6. **Confidence transitions:** What triggers a claim moving from `asserted` to `supported` to `corroborated`? Who authorizes the transition? Is it automated, human-reviewed, or both?
+6. **Confidence transitions:** ~~What triggers a claim moving from `asserted` to `supported` to `corroborated`? Who authorizes the transition? Is it automated, human-reviewed, or both?~~ **Resolved 2026-07-25** — GOVERNANCE_MODELS.md §1.1 defines the AI boundary (AI may set evidence_status up to `inferred`; elevation to `supported` or `corroborated` requires human action under the applicable ApprovalPolicy). GOVERNANCE_MODELS.md §1.4 defines review_status transition requirement: `policy_approved` status required before a record may be used as the basis for a consequential action. Transition authorization mechanism is an application-layer implementation detail, not a schema blocker.
 
 ---
 

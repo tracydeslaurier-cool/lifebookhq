@@ -106,7 +106,7 @@ Claims are distinct from Narratives (extended human accounts), Events (structure
 | `review_status` | Enum | `pending` / `human_reviewed` / `policy_approved` |
 | `submission_origin` | Enum | See §1.1 |
 | `access_classification` | Enum | See §8.1 |
-| `display_policy_id` | UUID FK | Nullable |
+| `display_policy_id` | UUID FK | Nullable; FK → display_policies(id); see DISPLAY_POLICY_MODEL.md |
 | `superseded_by_claim_id` | UUID FK | Nullable |
 | `ai_generated` | Boolean | Default false |
 | `producing_agent_code` | Text | Nullable |
@@ -315,7 +315,7 @@ Relationships are distinct from EventParticipant records (momentary roles in dis
 | `review_status` | Enum | `pending` / `human_reviewed` / `policy_approved` |
 | `submission_origin` | Enum | See §1.1 |
 | `access_classification` | Enum | See §8.1 |
-| `display_policy_id` | UUID FK | Nullable |
+| `display_policy_id` | UUID FK | Nullable; FK → display_policies(id); see DISPLAY_POLICY_MODEL.md |
 | `ai_generated` | Boolean | Default false |
 | `producing_agent_code` | Text | Nullable |
 | `context_manifest_id` | UUID FK | Nullable |
@@ -403,7 +403,7 @@ A Narrative is not itself a Claim. It is the human or AI-mediated layer of story
 | `review_status` | Enum | `pending` / `human_reviewed` / `policy_approved` |
 | `submission_origin` | Enum | See §1.1 |
 | `access_classification` | Enum | See §8.1 |
-| `display_policy_id` | UUID FK | Nullable |
+| `display_policy_id` | UUID FK | Nullable; FK → display_policies(id); see DISPLAY_POLICY_MODEL.md |
 | `is_restricted_content` | Boolean | If true, body_text requires explicit authorization to access |
 | `ai_generated` | Boolean | Default false |
 | `producing_agent_code` | Text | Nullable |
@@ -501,7 +501,7 @@ NarrativeEntity links Narratives to the Entities they mention, feature, quote, o
 | `entity_id` | UUID FK | References Entity.id |
 | `mention_role` | Enum | `subject` / `narrator` / `participant` / `mentioned` / `quoted` / `depicted` / `community` |
 | `is_restricted_mention` | Boolean | If true, this entity's involvement in this narrative is not surfaced in ordinary display |
-| `display_policy_id` | UUID FK | Nullable |
+| `display_policy_id` | UUID FK | Nullable; FK → display_policies(id); see DISPLAY_POLICY_MODEL.md |
 | `added_by_id` | UUID FK | |
 | `added_at` | Timestamp | |
 | `notes` | Text | Nullable |
@@ -533,7 +533,7 @@ Source is the record of an information origin. Artifact (§12) is the record of 
 | `jurisdiction_id` | UUID FK | Nullable |
 | `submission_origin` | Enum | See §1.1 |
 | `access_classification` | Enum | See §8.1 |
-| `display_policy_id` | UUID FK | Nullable |
+| `display_policy_id` | UUID FK | Nullable; FK → display_policies(id); see DISPLAY_POLICY_MODEL.md |
 | `review_status` | Enum | `pending` / `human_reviewed` / `policy_approved` |
 | `created_at` | Timestamp | |
 | `created_by_id` | UUID FK | |
@@ -671,7 +671,7 @@ Artifact is about the object's existence and custody, not about its informationa
 | `file_storage_reference_id` | UUID FK | Nullable; references FileStorageReference.id |
 | `submission_origin` | Enum | See §1.1 |
 | `access_classification` | Enum | See §8.1 |
-| `display_policy_id` | UUID FK | Nullable |
+| `display_policy_id` | UUID FK | Nullable; FK → display_policies(id); see DISPLAY_POLICY_MODEL.md |
 | `review_status` | Enum | `pending` / `human_reviewed` / `policy_approved` |
 | `created_at` | Timestamp | |
 | `created_by_id` | UUID FK | |
@@ -782,7 +782,7 @@ Event is distinct from Claim: a Claim is an atomic assertion (subject-predicate-
 | `dispute_status` | Enum | `uncontested` / `disputed` / `contradicted` / `retracted` / `superseded` |
 | `review_status` | Enum | `pending` / `human_reviewed` / `policy_approved` |
 | `access_classification` | Enum | See §8.1 |
-| `display_policy_id` | UUID FK | Nullable |
+| `display_policy_id` | UUID FK | Nullable; FK → display_policies(id); see DISPLAY_POLICY_MODEL.md |
 | `created_at` | Timestamp | |
 | `created_by_id` | UUID FK | |
 | `updated_at` | Timestamp | |
@@ -841,7 +841,7 @@ EventParticipant links Entity records to Event records with their specific role.
 | `participation_notes` | Text | Nullable |
 | `evidence_status` | Enum | Confidence that this entity participated |
 | `access_classification` | Enum | See §8.1 |
-| `display_policy_id` | UUID FK | Nullable |
+| `display_policy_id` | UUID FK | Nullable; FK → display_policies(id); see DISPLAY_POLICY_MODEL.md |
 | `added_by_id` | UUID FK | |
 | `added_at` | Timestamp | |
 | `notes` | Text | Nullable |

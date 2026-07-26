@@ -1053,7 +1053,7 @@ CREATE TABLE access_policy_changed_events (
 
 CREATE TABLE person_names (
     id                          UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-    person_id                   UUID        NOT NULL REFERENCES persons(id),
+    person_id                   UUID        NOT NULL REFERENCES persons(entity_id),
     usage_type                  TEXT        NOT NULL CHECK (usage_type IN ('legal','common','birth','religious','traditional','indigenous','institutional','alias')),
     honorific                   TEXT        NULL,
     given_names                 TEXT[]      NOT NULL DEFAULT '{}',
@@ -1106,7 +1106,7 @@ CREATE TABLE person_name_derivatives (
 
 CREATE TABLE person_pronouns (
     id                              UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-    person_id                       UUID        NOT NULL REFERENCES persons(id),
+    person_id                       UUID        NOT NULL REFERENCES persons(entity_id),
     pronoun_set_type                TEXT        NOT NULL CHECK (pronoun_set_type IN ('he_him','she_her','they_them','ze_zir','custom','unspecified')),
     custom_subject                  TEXT        NULL,
     custom_object                   TEXT        NULL,
@@ -1125,7 +1125,7 @@ CREATE TABLE person_pronouns (
 
 CREATE TABLE person_gender_descriptors (
     id                              UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-    person_id                       UUID        NOT NULL REFERENCES persons(id),
+    person_id                       UUID        NOT NULL REFERENCES persons(entity_id),
     descriptor                      TEXT        NOT NULL,
     display_label                   TEXT        NULL,
     effective_from                  DATE        NULL,
@@ -2334,13 +2334,13 @@ CREATE POLICY pol_person_names_select_lifebook
                   FROM lifebook_entities le
                   JOIN entities e ON e.id = le.entity_id
                   JOIN persons p ON p.entity_id = e.id
-                 WHERE p.id = person_names.person_id
+                 WHERE p.entity_id = person_names.person_id
                    AND fn_lb_membership_role(le.lifebook_id) != 'none'
                    AND NOT fn_user_is_agent()
             )
         )
         OR fn_is_subject_of(
-            (SELECT e.id FROM persons p JOIN entities e ON e.id = p.entity_id WHERE p.id = person_names.person_id)
+            (SELECT e.id FROM persons p JOIN entities e ON e.id = p.entity_id WHERE p.entity_id = person_names.person_id)
         )
     );
 
@@ -2354,13 +2354,13 @@ CREATE POLICY pol_person_pronouns_select_lifebook
                   FROM lifebook_entities le
                   JOIN entities e ON e.id = le.entity_id
                   JOIN persons p ON p.entity_id = e.id
-                 WHERE p.id = person_pronouns.person_id
+                 WHERE p.entity_id = person_pronouns.person_id
                    AND fn_lb_membership_role(le.lifebook_id) != 'none'
                    AND NOT fn_user_is_agent()
             )
         )
         OR fn_is_subject_of(
-            (SELECT e.id FROM persons p JOIN entities e ON e.id = p.entity_id WHERE p.id = person_pronouns.person_id)
+            (SELECT e.id FROM persons p JOIN entities e ON e.id = p.entity_id WHERE p.entity_id = person_pronouns.person_id)
         )
     );
 
@@ -2374,13 +2374,13 @@ CREATE POLICY pol_person_gender_select_lifebook
                   FROM lifebook_entities le
                   JOIN entities e ON e.id = le.entity_id
                   JOIN persons p ON p.entity_id = e.id
-                 WHERE p.id = person_gender_descriptors.person_id
+                 WHERE p.entity_id = person_gender_descriptors.person_id
                    AND fn_lb_membership_role(le.lifebook_id) != 'none'
                    AND NOT fn_user_is_agent()
             )
         )
         OR fn_is_subject_of(
-            (SELECT e.id FROM persons p JOIN entities e ON e.id = p.entity_id WHERE p.id = person_gender_descriptors.person_id)
+            (SELECT e.id FROM persons p JOIN entities e ON e.id = p.entity_id WHERE p.entity_id = person_gender_descriptors.person_id)
         )
     );
 
@@ -2392,7 +2392,7 @@ CREATE POLICY pol_person_name_derivatives_select
             EXISTS (
                 SELECT 1
                   FROM person_names pn
-                  JOIN persons p ON p.id = pn.person_id
+                  JOIN persons p ON p.entity_id = pn.person_id
                   JOIN entities e ON e.id = p.entity_id
                   JOIN lifebook_entities le ON le.entity_id = e.id
                  WHERE pn.id = person_name_derivatives.parent_name_id
@@ -2403,7 +2403,7 @@ CREATE POLICY pol_person_name_derivatives_select
         OR fn_is_subject_of(
             (SELECT e.id
                FROM person_names pn
-               JOIN persons p ON p.id = pn.person_id
+               JOIN persons p ON p.entity_id = pn.person_id
                JOIN entities e ON e.id = p.entity_id
               WHERE pn.id = person_name_derivatives.parent_name_id)
         )

@@ -351,7 +351,7 @@ These issues exist in the broader migration plan but do not block 0001 approval:
 | OQ-1 | EscalationRecord table not yet designed; `escalation_record_status` values are placeholders | Open | EscalationRecord migration |
 | OQ-2 | `authority_basis_types.claim_predicate_code` FK not yet wired; ClaimPredicate does not yet exist | Open | ClaimPredicate migration |
 | OQ-3 | `data_conflict_types.default_escalation_policy_code` FK not yet wired; EscalationPolicy does not yet exist | Open | EscalationPolicy migration |
-| OQ-4 | `authority_context_policy_conditions.jurisdiction_code` FK not yet wired; Jurisdiction table in 0002+ | Open | Jurisdiction migration |
+| OQ-4 | `authority_context_policy_conditions.jurisdiction_code` FK not yet wired; Jurisdiction table in core-schema migration (0003) | Open | Jurisdiction migration |
 | OQ-5 | Jurisdiction seeds (CA, CA-AB, CA-ON, CA-BC, CA-QC, UA, EU, INTL) not seeded in 0001 | Open | Jurisdiction migration |
 | ADR-0001 | 7 new ClaimPredicate entries needed (per ADR-0001 basis_claim_id pattern) | Open | CLAIM_PREDICATE_CATALOGUE update |
 
