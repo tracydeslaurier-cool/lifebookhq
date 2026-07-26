@@ -22,7 +22,7 @@ and permissions *applied* by a later migration to an object owned by an earlier 
 | Tables | 39 | 1 | 0 | 49 | **89** |
 | Functions | 0 | 0 | 0 | 31 | **31** |
 | Triggers | 0 | 0 | 0 | 22 | **22** |
-| Indexes | 0 | 0 | 0 | 15 | **15** |
+| Indexes | 0 | 0 | 0 | 14 | **14** |
 | Deferred FKs (file-order) | 0 | 0 | 0 | 4 | **4** |
 | CONSTRAINT TRIGGERs (SQL-deferrable) | 0 | 0 | 0 | 1 | **1** |
 | RLS policies | 39 | 0 | 0 | 71 | **110** |
@@ -58,7 +58,7 @@ and permissions *applied* by a later migration to an object owned by an earlier 
 | Tables | 89 | 39 from M0001, 1 from M0002, 49 from M0003 |
 | Functions | 31 | All from M0003 |
 | Triggers | 22 | All from M0003 |
-| Indexes (explicit) | 15 | All from M0003 |
+| Indexes (explicit) | 14 | All from M0003 |
 | Deferred FKs (file-order ALTER TABLE) | 4 | All from M0003 |
 | CONSTRAINT TRIGGER (SQL-deferrable) | 1 | M0003: trg_lifebook_person_context_completeness |
 | RLS-enabled tables | 25 | All from M0003 (M0001 tables use non-ENABLE approach) |
@@ -305,25 +305,27 @@ All 31 functions are created in Migration 0003. None exist in M0001 or M0002.
 
 ---
 
-## 6. Indexes (15 total — all Migration 0003)
+## 6. Indexes (14 total — all Migration 0003)
+
+<!-- idx_entities_lifebook_id removed 2026-07-26: entities has no lifebook_id column.
+     entities is a cross-lifebook identity anchor; lifebook scoping is via lifebook_entities. -->
 
 | # | Index | Table | Type | Purpose |
 |---|---|---|---|---|
-| 1 | `idx_entities_lifebook_id` | `entities` | Performance | Lifebook-scoped entity lookups |
-| 2 | `idx_claims_subject_entity_id` | `claims` | Performance | Claims by subject entity |
-| 3 | `idx_claims_predicate_id` | `claims` | Performance | Claims by predicate type |
-| 4 | `idx_relationships_entity_a` | `relationships` | Performance | Relationships by first entity |
-| 5 | `idx_relationships_entity_b` | `relationships` | Performance | Relationships by second entity |
-| 6 | `idx_authority_assignments_entity_id` | `authority_assignments` | Performance | Authority by entity |
-| 7 | `idx_context_manifests_agent_code` | `context_manifests` | Performance | Context manifests by agent |
-| 8 | `uq_lifebook_entities_active` | `lifebook_entities` | Partial UNIQUE (WHERE removed_at IS NULL) | Enforces no duplicate active entity in lifebook |
-| 9 | `idx_lifebook_memberships_user_lifebook` | `lifebook_memberships` | Performance | Membership by user+lifebook |
-| 10 | `idx_authority_assignments_role_entity` | `authority_assignments` | Performance | Authority by role+entity |
-| 11 | `idx_authority_assignments_expiry` | `authority_assignments` | Performance | Authority expiry range queries |
-| 12 | `idx_claims_lifebook_review_access` | `claims` | Performance | Claims by lifebook+review_status |
-| 13 | `idx_display_policy_rules_policy_context` | `display_policy_rules` | Performance | Policy rules by policy+context |
-| 14 | `idx_user_person_links_user_entity` | `user_person_links` | Performance | User-to-person link lookups |
-| 15 | `idx_contest_records_contested_record` | `contest_records` | Performance | Contest records by contested object |
+| 1 | `idx_claims_subject_entity_id` | `claims` | Performance | Claims by subject entity |
+| 2 | `idx_claims_predicate_id` | `claims` | Performance | Claims by predicate type |
+| 3 | `idx_relationships_entity_a` | `relationships` | Performance | Relationships by first entity |
+| 4 | `idx_relationships_entity_b` | `relationships` | Performance | Relationships by second entity |
+| 5 | `idx_authority_assignments_entity_id` | `authority_assignments` | Performance | Authority by entity |
+| 6 | `idx_context_manifests_agent_code` | `context_manifests` | Performance | Context manifests by agent |
+| 7 | `uq_lifebook_entities_active` | `lifebook_entities` | Partial UNIQUE (WHERE removed_at IS NULL) | Enforces no duplicate active entity in lifebook |
+| 8 | `idx_lifebook_memberships_user_lifebook` | `lifebook_memberships` | Performance | Membership by user+lifebook |
+| 9 | `idx_authority_assignments_role_entity` | `authority_assignments` | Performance | Authority by role+entity |
+| 10 | `idx_authority_assignments_expiry` | `authority_assignments` | Performance | Authority expiry range queries |
+| 11 | `idx_claims_lifebook_review_access` | `claims` | Performance | Claims by lifebook+review_status |
+| 12 | `idx_display_policy_rules_policy_context` | `display_policy_rules` | Performance | Policy rules by policy+context |
+| 13 | `idx_user_person_links_user_entity` | `user_person_links` | Performance | User-to-person link lookups |
+| 14 | `idx_contest_records_contested_record` | `contest_records` | Performance | Contest records by contested object |
 
 ---
 

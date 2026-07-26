@@ -6,7 +6,7 @@
 --   20260724153745_types_and_vocabularies   (39 enum types, 39 vocabulary tables)
 --   20260726083201_predicate_governance_types (3 enum types, display_contexts)
 --   20260726083202_application_roles          (agent_service, system_service, admin, governance_functions)
--- Creates: 49 tables, 4 deferred FKs (ALTER TABLE), 15 explicit indexes,
+-- Creates: 49 tables, 4 deferred FKs (ALTER TABLE), 14 explicit indexes,
 --          31 functions (9 helpers + 22 trigger functions), 22 triggers,
 --          RLS on 25 tables, 71 RLS policies, 64 GRANT statements,
 --          reference catalogue seed data (134 records)
@@ -1141,8 +1141,9 @@ CREATE TABLE person_gender_descriptors (
 -- Phase 3 — Indexes
 -- ---------------------------------------------------------------------------
 
--- Standard indexes (7)
-CREATE INDEX idx_entities_lifebook_id              ON entities (lifebook_id);
+-- Standard indexes (6)
+-- NOTE: idx_entities_lifebook_id removed 2026-07-26 — entities has no lifebook_id column;
+--       entities is a cross-lifebook identity anchor; lifebook scoping is via lifebook_entities.
 CREATE INDEX idx_claims_subject_entity_id          ON claims (subject_entity_id);
 CREATE INDEX idx_claims_predicate_id               ON claims (predicate_id);
 CREATE INDEX idx_relationships_entity_a            ON relationships (entity_a_id);

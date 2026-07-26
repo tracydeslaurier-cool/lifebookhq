@@ -12,9 +12,11 @@
 
 ## Executive Result
 
-**STATIC VALIDATION PASSED — 113/113 checks, 0 failures, 0 undocumented dependencies.**
+**STATIC VALIDATION PASSED — 112/112 checks, 0 failures, 0 undocumented dependencies.**
 
 All four migration files parse cleanly with pglast. No duplicate schema objects exist across migrations. All foreign key targets are accounted for. The role correction (four NOLOGIN group roles extracted into dedicated migration 0002b) is confirmed in force and validated by machine check. The M0001 live seed count (345) matches the validator check. The validator script self-reports zero failures with no manual interpretation required.
+
+> **Index count correction (2026-07-26):** `idx_entities_lifebook_id` removed from M0003 — the `entities` table has no `lifebook_id` column; lifebook scoping is via the `lifebook_entities` junction table. This was stale implementation drift. Index count reduced from 15 to 14; check count reduced from 113 to 112.
 
 > **Limitation statement:** Static validation cannot prove PostgreSQL runtime execution, transactional rollback, trigger behaviour, deferred-constraint behaviour, or RLS behaviour under non-superuser roles. The findings in this report reflect AST-level and text-structural analysis only.
 
@@ -27,7 +29,7 @@ All four migration files parse cleanly with pglast. No duplicate schema objects 
 | 0001 | `20260724153745_types_and_vocabularies.sql` | Applied to Supabase production AND disposable | Vocabulary layer: 39 ENUM types, 39 tables, 345 seed records (incl. 11 ClaimValueUnit) |
 | 0002 | `20260726083201_predicate_governance_types.sql` | Applied to disposable; pending production | Predicate governance: 3 ENUM types, 1 table (display_contexts), 9 records |
 | 0002b | `20260726083202_application_roles.sql` | Pending | Application roles: agent_service, system_service, admin, governance_functions (all NOLOGIN) |
-| 0003 | `20260726083203_core_schema.sql` | Pending | Core schema: 49 tables, 31 functions, 22 triggers, 15 indexes, 71 RLS policies |
+| 0003 | `20260726083203_core_schema.sql` | Pending | Core schema: 49 tables, 31 functions, 22 triggers, 14 indexes, 71 RLS policies |
 
 **Settled ownership:**
 - Migration 0001 owns `claim_value_units`, the `unit_category` ENUM type, and all 11 ClaimValueUnit seed records. Live-confirmed total seed records: 345.
@@ -87,7 +89,7 @@ See: `foundation/MIGRATION_OBJECT_OWNERSHIP_MATRIX.md`
 | Tables created | 49 |
 | Functions created | 31 (9 public helpers + 22 trigger functions) |
 | Triggers created | 22 |
-| Indexes created | 15 (14 performance + 1 partial unique) |
+| Indexes created | 14 (13 performance + 1 partial unique) |
 | Deferred FKs (file-order ALTER TABLE) | 4 |
 | CONSTRAINT TRIGGER (SQL-deferrable) | 1 |
 | RLS-enabled tables | 25 |
@@ -111,7 +113,7 @@ See: `foundation/MIGRATION_OBJECT_OWNERSHIP_MATRIX.md`
 | Tables | 89 | M0001: 39, M0002: 1, M0002b: 0, M0003: 49 |
 | Functions | 31 | M0001: 0, M0002: 0, M0002b: 0, M0003: 31 |
 | Triggers | 22 | M0001: 0, M0002: 0, M0002b: 0, M0003: 22 |
-| Indexes (explicit) | 15 | M0001: 0, M0002: 0, M0002b: 0, M0003: 15 |
+| Indexes (explicit) | 14 | M0001: 0, M0002: 0, M0002b: 0, M0003: 14 |
 | Deferred FKs (ALTER TABLE) | 4 | M0003 only |
 | CONSTRAINT TRIGGERs (SQL-deferrable) | 1 | M0003 only |
 | RLS-enabled tables | 25 | M0003 only (M0001 tables have dormant policies) |
@@ -138,7 +140,7 @@ All four migrations parsed cleanly with pglast. No syntax errors. No unclassifie
 | M0001 | 1,761 | 158 | CLEAN |
 | M0002 | 207 | 8 | CLEAN |
 | M0002b | 186 | 10 | CLEAN |
-| M0003 | 2,871 | 302 | CLEAN |
+| M0003 | 2,872 | 302 | CLEAN |
 
 ### Statement Breakdown — M0001 (158)
 
@@ -181,7 +183,7 @@ All four migrations parsed cleanly with pglast. No syntax errors. No unclassifie
 | CreateStmt (TABLE) | 49 |
 | CreateTrigStmt | 22 |
 | GrantStmt | 64 |
-| IndexStmt | 15 |
+| IndexStmt | 14 |
 | InsertStmt | 8 |
 | TransactionStmt (BEGIN, COMMIT) | 2 |
 | UpdateStmt | 1 |
@@ -300,9 +302,12 @@ Migration files must not be modified after this manifest without regenerating th
 | M0001 | `20260724153745_types_and_vocabularies.sql` | `10299654bc6d58ede4f685fbe2642149498ef08e652d3ea98231e449bada9f93` | 1,761 | 81,844 |
 | M0002 | `20260726083201_predicate_governance_types.sql` | `1022fd2aa57410a005da4502dc64a0ba07fc363c0f2d45d771bd39d458178656` | 207 | 8,576 |
 | M0002b | `20260726083202_application_roles.sql` | `24daadbeef3afd448a5637a5a0c5cec28fea23dd48948a9f1203c15e9f064d24` | 186 | 7,885 |
-| M0003 | `20260726083203_core_schema.sql` | `e254372a6c6658ea87b68ad4b747a974e632b16ad9632eb0eefa060fac916110` | 2,871 | 179,493 |
+| M0003 | `20260726083203_core_schema.sql` | `fbd60d9f5208be8b6af567cc341a80e7a4ccfc67c5c909a5da541609f395a60a` | 2,872 | 179,606 |
 
-**Note on M0003 checksum change:** M0003 was previously `20260726083201_core_schema.sql` (SHA-256: `9770d0b34398047ded53c447f6364842582addb1d54e2d2352ddd28319231c41`). The file was renamed to `20260726083203_core_schema.sql` and the migration header was updated (required prior migration reference corrected; `CREATE ROLE governance_functions` removed). The new checksum above reflects the corrected file.
+**Note on M0003 checksum change:** M0003 has undergone two corrections since initial authoring:
+1. Renamed from `20260726083201_core_schema.sql`; header updated; `CREATE ROLE governance_functions` removed (SHA-256 was: `9770d0b34398047ded53c447f6364842582addb1d54e2d2352ddd28319231c41`, then: `e254372a6c6658ea87b68ad4b747a974e632b16ad9632eb0eefa060fac916110`).
+2. Removed stale `idx_entities_lifebook_id` index 2026-07-26 — entities has no `lifebook_id` column; index count reduced 15 → 14; check count 113 → 112.
+The checksum above reflects the fully corrected file.
 
 **Git working tree state:** M0001 and M0002 committed (hash ee8dd0f and prior). M0002b and M0003 (renamed) require commit — Task #141.
 
@@ -338,4 +343,4 @@ The DP-authorized stop condition (missing application roles) has been resolved b
 
 ---
 
-*FINAL_STATIC_VALIDATION_REPORT.md — LifeBook HQ — 2026-07-26 (v2, post-role-correction)*
+*FINAL_STATIC_VALIDATION_REPORT.md — LifeBook HQ — 2026-07-26 (v3, post-role-correction, post-index-correction)*

@@ -427,8 +427,8 @@ def main():
     check("M0003 has exactly 22 triggers",
           m0003_counts.get('CreateTrigStmt', 0) == 22,
           f"found {m0003_counts.get('CreateTrigStmt', 0)}")
-    check("M0003 has exactly 15 indexes (14 regular + 1 partial unique)",
-          m0003_counts.get('IndexStmt', 0) == 15,
+    check("M0003 has exactly 14 indexes (13 regular + 1 partial unique)",
+          m0003_counts.get('IndexStmt', 0) == 14,
           f"found {m0003_counts.get('IndexStmt', 0)}")
     check("M0003 has exactly 71 RLS policies",
           m0003_counts.get('CreatePolicyStmt', 0) == 71,
@@ -543,7 +543,7 @@ def main():
           f"all indexes: {sorted(m0003_indexes)}")
 
     expected_indexes = [
-        'idx_entities_lifebook_id',
+        # idx_entities_lifebook_id removed 2026-07-26: entities has no lifebook_id column
         'idx_claims_subject_entity_id',
         'idx_claims_predicate_id',
         'idx_relationships_entity_a',
