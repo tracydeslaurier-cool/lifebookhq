@@ -1,11 +1,12 @@
 # Migration Object Ownership Matrix
 
 **Project:** LifeBook HQ
-**Migrations covered:** 0001, 0002, 0003
+**Migrations covered:** 0001, 0002, 0002b (application_roles), 0003
 **Produced:** 2026-07-26
-**Status:** Final — post-boundary-correction
+**Updated:** 2026-07-26 — application_roles migration added; core_schema renamed to 083203; M0001 seed count corrected (338 → 345)
+**Status:** Current — post-boundary-correction, post-role-correction
 
-This document records every schema object introduced by Migrations 0001 through 0003.
+This document records every schema object introduced by Migrations 0001 through 0003 (including 0002b).
 It distinguishes objects *created* by a migration, objects *referenced* by a migration,
 and permissions *applied* by a later migration to an object owned by an earlier migration.
 
@@ -15,19 +16,19 @@ and permissions *applied* by a later migration to an object owned by an earlier 
 
 ### A. Migration-Specific Object Counts
 
-| Object Type | M0001 creates | M0002 creates | M0003 creates | Total |
-|---|---|---|---|---|
-| ENUM types | 39 | 3 | 0 | **42** |
-| Tables | 39 | 1 | 49 | **89** |
-| Functions | 0 | 0 | 31 | **31** |
-| Triggers | 0 | 0 | 22 | **22** |
-| Indexes | 0 | 0 | 15 | **15** |
-| Deferred FKs (file-order) | 0 | 0 | 4 | **4** |
-| CONSTRAINT TRIGGERs (SQL-deferrable) | 0 | 0 | 1 | **1** |
-| RLS policies | 39 | 0 | 71 | **110** |
-| GRANT statements | 0 | 0 | 64 | **64** |
-| Roles created | 0 | 0 | 1 | **1** |
-| ALTER OWNER statements | 0 | 0 | 8 | **8** |
+| Object Type | M0001 creates | M0002 creates | M0002b creates | M0003 creates | Total |
+|---|---|---|---|---|---|
+| ENUM types | 39 | 3 | 0 | 0 | **42** |
+| Tables | 39 | 1 | 0 | 49 | **89** |
+| Functions | 0 | 0 | 0 | 31 | **31** |
+| Triggers | 0 | 0 | 0 | 22 | **22** |
+| Indexes | 0 | 0 | 0 | 15 | **15** |
+| Deferred FKs (file-order) | 0 | 0 | 0 | 4 | **4** |
+| CONSTRAINT TRIGGERs (SQL-deferrable) | 0 | 0 | 0 | 1 | **1** |
+| RLS policies | 39 | 0 | 0 | 71 | **110** |
+| GRANT statements | 0 | 0 | 0 | 64 | **64** |
+| Roles created | 0 | 0 | 4 | 0 | **4** |
+| ALTER OWNER statements | 0 | 0 | 0 | 8 | **8** |
 
 ### B. Migration-Specific Seed Counts
 
@@ -45,8 +46,9 @@ and permissions *applied* by a later migration to an object owned by an earlier 
 | `context_profiles` | — | — | **2** | 2 |
 | 39 M0001 vocabulary tables (other) | **327** | — | — | 327 |
 
-**Migration-specific seed totals:** M0001 = 338, M0002 = 9, M0003 = 134
-**Cumulative seed records after 0001–0003:** 481
+**Migration-specific seed totals:** M0001 = 345, M0002 = 9, M0002b = 0, M0003 = 134
+**Cumulative seed records after 0001–0002b–0003:** 488
+*(M0001 count corrected 2026-07-26: live-confirmed 345, documentation previously stated 338)*
 
 ### C. Cumulative Totals After Migrations 0001–0003
 
@@ -61,9 +63,9 @@ and permissions *applied* by a later migration to an object owned by an earlier 
 | CONSTRAINT TRIGGER (SQL-deferrable) | 1 | M0003: trg_lifebook_person_context_completeness |
 | RLS-enabled tables | 25 | All from M0003 (M0001 tables use non-ENABLE approach) |
 | RLS policies | 110 | 39 from M0001, 71 from M0003 |
-| Roles | 1 | M0003: governance_functions role |
+| Roles | 4 | M0002b: agent_service, system_service, admin, governance_functions |
 | GRANT statements | 64 | All from M0003 |
-| Seed records (total) | 481 | 338 from M0001, 9 from M0002, 134 from M0003 |
+| Seed records (total) | 488 | 345 from M0001, 9 from M0002, 0 from M0002b, 134 from M0003 |
 
 ---
 
@@ -455,11 +457,13 @@ One `vocab_read_authenticated` policy per vocabulary table. All use `FOR SELECT`
 
 ---
 
-## 10. Seed Catalogues (481 total records across 49 seed datasets)
+## 10. Seed Catalogues (488 total records across 49 seed datasets)
+
+*M0001 total corrected 2026-07-26: live-confirmed 345 seed records. Documentation previously stated 338.*
 
 | Dataset | Owner Migration | Record Count | Source Authority |
 |---|---|---|---|
-| 39 vocabulary catalogues (M0001 tables) | M0001 | 327 | ANCHOR_MODELS.md, CONTENT_LAYER.md, GOVERNANCE_MODELS.md, OPERATIONAL_MODELS.md |
+| 39 vocabulary catalogues (M0001 tables) | M0001 | 334 | ANCHOR_MODELS.md, CONTENT_LAYER.md, GOVERNANCE_MODELS.md, OPERATIONAL_MODELS.md |
 | `claim_value_units` | **M0001** | **11** | CONTENT_LAYER.md §3.2.2 |
 | `display_contexts` | M0002 | 9 | MIGRATION_IMPLEMENTATION_PLAN.md §1.4 |
 | `jurisdictions` | M0003 | 6 | OPERATIONAL_MODELS.md §4 (CA, CA-AB, CA-BC, CA-ON, UA, INTL) |
@@ -470,7 +474,7 @@ One `vocab_read_authenticated` policy per vocabulary table. All use `FOR SELECT`
 | `relationship_types` | M0003 | 27 | RELATIONSHIP_TYPE_CATALOGUE.md |
 | `agent_registry` | M0003 | 9 | AI_CONTEXT_BROKER.md §3.2 |
 | `context_profiles` | M0003 | 2 | AI_CONTEXT_BROKER.md §2 |
-| **Total** | | **481** | |
+| **Total** | | **488** | |
 
 ---
 

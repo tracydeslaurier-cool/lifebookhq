@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """
 LifeBook Migration Static Validator
-Validates migrations 0001, 0002, 0003 using pglast AST-aware checks.
+Validates migrations 0001, 0002, 0002b (application_roles), 0003 using pglast AST-aware checks.
 All checks are structural — no brittle text matching.
+
+Migration sequence:
+  M0001  20260724153745_types_and_vocabularies.sql   — applied
+  M0002  20260726083201_predicate_governance_types.sql — pending
+  M0002b 20260726083202_application_roles.sql         — pending (new: agent_service, system_service, admin, governance_functions)
+  M0003  20260726083203_core_schema.sql               — pending (renamed from 083201)
 
 Usage: python3 validate_migrations.py
 Exit code 0 = all checks passed; non-zero = failures detected.
@@ -21,14 +27,16 @@ except ImportError:
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 MIGRATION_DIR = Path('/sessions/determined-awesome-tesla/mnt/lifebookhq/supabase/migrations')
-M0001 = MIGRATION_DIR / '20260724153745_types_and_vocabularies.sql'
-M0002 = MIGRATION_DIR / '20260726083201_predicate_governance_types.sql'
-M0003 = MIGRATION_DIR / '20260726083201_core_schema.sql'
+M0001  = MIGRATION_DIR / '20260724153745_types_and_vocabularies.sql'
+M0002  = MIGRATION_DIR / '20260726083201_predicate_governance_types.sql'
+M0002b = MIGRATION_DIR / '20260726083202_application_roles.sql'
+M0003  = MIGRATION_DIR / '20260726083203_core_schema.sql'
 
 MIGRATIONS = [
-    ('M0001', M0001, 'applied'),
-    ('M0002', M0002, 'pending'),
-    ('M0003', M0003, 'pending'),
+    ('M0001',  M0001,  'applied'),
+    ('M0002',  M0002,  'pending'),
+    ('M0002b', M0002b, 'pending'),
+    ('M0003',  M0003,  'pending'),
 ]
 
 # ── Result tracking ────────────────────────────────────────────────────────────
@@ -265,12 +273,24 @@ def line_count(path: Path) -> int:
 # MAIN VALIDATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def get_create_role_names(stmts) -> list:
+    """Return role names from all CreateRoleStmt nodes (CREATE ROLE statements)."""
+    names = []
+    for s in stmts:
+        if type(s.stmt).__name__ == 'CreateRoleStmt':
+            try:
+                names.append(str(s.stmt.role))
+            except Exception:
+                pass
+    return names
+
+
 def main():
     print("=" * 70)
     print("  LifeBook Migration Static Validator")
     print("=" * 70)
 
-    # ── Load and parse all three migrations ────────────────────────────────────
+    # ── Load and parse all four migrations ────────────────────────────────────
     parsed = {}
     sqls = {}
     for label, path, status in MIGRATIONS:
@@ -283,9 +303,10 @@ def main():
             print(f"FATAL: {label} parse error: {e}")
             sys.exit(1)
 
-    m0001_stmts = parsed['M0001']
-    m0002_stmts = parsed['M0002']
-    m0003_stmts = parsed['M0003']
+    m0001_stmts  = parsed['M0001']
+    m0002_stmts  = parsed['M0002']
+    m0002b_stmts = parsed['M0002b']
+    m0003_stmts  = parsed['M0003']
 
     # ── Section 1: pglast parse results ───────────────────────────────────────
     section("1. pglast Parse Results")
@@ -304,6 +325,8 @@ def main():
             print(f"      {t}: {n}")
         check(f"{label} parses cleanly", True, f"{total} statements")
 
+    m0002b_counts = get_stmt_types(m0002b_stmts)
+
     # ── Section 2: Transaction Wrapping ───────────────────────────────────────
     section("2. Transaction Wrapping")
 
@@ -313,11 +336,16 @@ def main():
     check("M0001 has no transaction-level BEGIN (no explicit wrap)", not m0001_has_begin)
     check("M0001 has no transaction-level COMMIT (no explicit wrap)", not m0001_has_commit)
 
-    # M0002 and M0003: must have BEGIN + COMMIT
+    # M0002, M0002b, M0003: must have BEGIN + COMMIT
     m0002_has_begin = has_transaction_begin(sqls['M0002'])
     m0002_has_commit = has_transaction_commit(sqls['M0002'])
     check("M0002 has transaction-level BEGIN", m0002_has_begin)
     check("M0002 has transaction-level COMMIT", m0002_has_commit)
+
+    m0002b_has_begin = has_transaction_begin(sqls['M0002b'])
+    m0002b_has_commit = has_transaction_commit(sqls['M0002b'])
+    check("M0002b has transaction-level BEGIN", m0002b_has_begin)
+    check("M0002b has transaction-level COMMIT", m0002b_has_commit)
 
     m0003_has_begin = has_transaction_begin(sqls['M0003'])
     m0003_has_commit = has_transaction_commit(sqls['M0003'])
@@ -326,6 +354,33 @@ def main():
 
     # ── Section 3: Object Counts ───────────────────────────────────────────────
     section("3. Object Counts")
+
+    # M0002b: application_roles migration — exactly 4 CREATE ROLE, no DDL, no functions
+    m0002b_roles = get_create_role_names(m0002b_stmts)
+    expected_roles = {'agent_service', 'system_service', 'admin', 'governance_functions'}
+    check("M0002b has exactly 4 CREATE ROLE statements",
+          len(m0002b_roles) == 4,
+          f"found {len(m0002b_roles)}: {m0002b_roles}")
+    check("M0002b role names match expected set (agent_service, system_service, admin, governance_functions)",
+          set(m0002b_roles) == expected_roles,
+          f"found: {set(m0002b_roles)} expected: {expected_roles}")
+    check("M0002b has no CREATE TABLE statements",
+          m0002b_counts.get('CreateStmt', 0) == 0,
+          f"found {m0002b_counts.get('CreateStmt', 0)}")
+    check("M0002b has no CREATE FUNCTION statements",
+          m0002b_counts.get('CreateFunctionStmt', 0) == 0,
+          f"found {m0002b_counts.get('CreateFunctionStmt', 0)}")
+    check("M0002b has no CREATE TRIGGER statements",
+          m0002b_counts.get('CreateTrigStmt', 0) == 0,
+          f"found {m0002b_counts.get('CreateTrigStmt', 0)}")
+    check("M0002b has no CREATE POLICY statements",
+          m0002b_counts.get('CreatePolicyStmt', 0) == 0,
+          f"found {m0002b_counts.get('CreatePolicyStmt', 0)}")
+    check("M0002b has no GRANT statements (roles only — grants are M0003's scope)",
+          m0002b_counts.get('GrantStmt', 0) == 0,
+          f"found {m0002b_counts.get('GrantStmt', 0)}")
+    check("M0002b has no IF NOT EXISTS DDL guards (roles fail loudly if pre-existing)",
+          len(check_no_ddl_if_not_exists(m0002b_stmts)) == 0)
 
     m0001_counts = get_stmt_types(m0001_stmts)
     check("M0001 has exactly 39 enum types",
@@ -342,6 +397,10 @@ def main():
           f"found {m0001_counts.get('InsertStmt', 0)}")
 
     m0001_inserts = get_insert_counts(m0001_stmts)
+    m0001_total_seeds = sum(m0001_inserts.values())
+    check("M0001 total seed records = 345 (live-confirmed 2026-07-26)",
+          m0001_total_seeds == 345,
+          f"found {m0001_total_seeds}")
     check("M0001 claim_value_units seeded with exactly 11 records",
           m0001_inserts.get('claim_value_units', 0) == 11,
           f"found {m0001_inserts.get('claim_value_units', 0)}")
@@ -415,10 +474,17 @@ def main():
     check("M0003 does NOT insert into display_contexts",
           'display_contexts' not in m0003_inserts)
 
+    # M0003 must NOT contain CREATE ROLE — all roles created by M0002b
+    m0003_roles = get_create_role_names(m0003_stmts)
+    check("M0003 has zero CREATE ROLE statements (roles are owned by M0002b)",
+          len(m0003_roles) == 0,
+          f"unexpected roles: {m0003_roles}" if m0003_roles else "clean")
+
     # ── Section 4: DDL Guard Checks ───────────────────────────────────────────
     section("4. DDL Guard Checks (No IF NOT EXISTS in DDL Statements)")
 
-    for label, stmts in [('M0001', m0001_stmts), ('M0002', m0002_stmts), ('M0003', m0003_stmts)]:
+    for label, stmts in [('M0001', m0001_stmts), ('M0002', m0002_stmts),
+                         ('M0002b', m0002b_stmts), ('M0003', m0003_stmts)]:
         violations = check_no_ddl_if_not_exists(stmts)
         check(f"{label} has no DDL-level IF NOT EXISTS guards",
               len(violations) == 0,
@@ -448,6 +514,7 @@ def main():
 
     check("M0001 has no CREATE OR REPLACE FUNCTION", not has_or_replace_function(m0001_stmts))
     check("M0002 has no CREATE OR REPLACE FUNCTION", not has_or_replace_function(m0002_stmts))
+    check("M0002b has no CREATE OR REPLACE FUNCTION", not has_or_replace_function(m0002b_stmts))
     check("M0003 has no CREATE OR REPLACE FUNCTION", not has_or_replace_function(m0003_stmts))
 
     # SECURITY DEFINER: _fn_trg_claim_numeric_unit_check must be SECURITY DEFINER
@@ -586,18 +653,27 @@ def main():
     m0001_tables_set = set(get_table_names(m0001_stmts))
     m0002_tables_set = set(get_table_names(m0002_stmts))
     for pair, dupes in [
-        ("M0001 vs M0002", m0001_tables_set & m0002_tables_set),
-        ("M0001 vs M0003", m0001_tables_set & m0003_tables_set),
-        ("M0002 vs M0003", m0002_tables_set & m0003_tables_set),
+        ("M0001 vs M0002",  m0001_tables_set & m0002_tables_set),
+        ("M0001 vs M0003",  m0001_tables_set & m0003_tables_set),
+        ("M0002 vs M0003",  m0002_tables_set & m0003_tables_set),
     ]:
         check(f"No duplicate table names {pair}",
               len(dupes) == 0,
               f"duplicates: {dupes}" if dupes else "clean")
 
+    # Role name uniqueness: M0002b creates all four roles; no other migration should create roles
+    m0001_roles_count = len(get_create_role_names(m0001_stmts))
+    m0002_roles_count = len(get_create_role_names(m0002_stmts))
+    check("M0001 creates no roles", m0001_roles_count == 0, f"found {m0001_roles_count}")
+    check("M0002 creates no roles", m0002_roles_count == 0, f"found {m0002_roles_count}")
+    # M0003 role check already done in Section 3
+
     check("M0001 defines no functions", len(get_function_names(m0001_stmts)) == 0)
     check("M0002 defines no functions", len(get_function_names(m0002_stmts)) == 0)
+    check("M0002b defines no functions", len(get_function_names(m0002b_stmts)) == 0)
     check("M0001 defines no triggers", len(get_trigger_names(m0001_stmts)) == 0)
     check("M0002 defines no triggers", len(get_trigger_names(m0002_stmts)) == 0)
+    check("M0002b defines no triggers", len(get_trigger_names(m0002b_stmts)) == 0)
 
     check("M0003 creates no new enum types (all enums from M0001/M0002)",
           m0003_counts.get('CreateEnumStmt', 0) == 0,
@@ -625,6 +701,11 @@ def main():
           'display_contexts' in m0002_tables_set)
     check("M0003 references auth.users (Supabase built-in, no DDL required)",
           bool(re.search(r'REFERENCES\s+auth\.users', sqls['M0003'])))
+
+    # M0002b prerequisite: all four roles must be created by M0002b before M0003 consumes them
+    for role_name in ['agent_service', 'system_service', 'admin', 'governance_functions']:
+        check(f"M0002b creates role '{role_name}' (required by M0003 GRANT/OWNER TO statements)",
+              role_name in m0002b_roles)
 
     # ── Section 12: RLS Coverage (AST-based) ──────────────────────────────────
     section("12. RLS Coverage (AST-based, not text match)")

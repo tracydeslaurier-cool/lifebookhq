@@ -1,18 +1,20 @@
 # Final Static Validation Report
-## LifeBook HQ — Migrations 0001, 0002, 0003
+## LifeBook HQ — Migrations 0001, 0002, 0002b (application_roles), 0003
 
 **Report date:** 2026-07-26  
-**Validator:** validate_migrations.py v1.0 (pglast v8.4, AST-aware)  
+**Validator:** validate_migrations.py v1.1 (pglast v8.4, AST-aware) — extended with M0002b and M0001 seed-total checks  
 **Migration boundary correction applied:** Yes — claim_value_units removed from Migration 0003; owned by Migration 0001  
-**DP authorization:** Boundary correction approved; static validation phase authorized  
+**Role correction applied (2026-07-26):** Yes — agent_service, system_service, admin, governance_functions created by new Migration 0002b (20260726083202_application_roles.sql); CREATE ROLE removed from core_schema; core_schema renamed to 20260726083203_core_schema.sql  
+**M0001 seed count corrected (2026-07-26):** 338 → 345 (live-confirmed from disposable project)  
+**DP authorization:** Boundary correction approved; role correction authorized 2026-07-26; static validation phase authorized  
 
 ---
 
 ## Executive Result
 
-**STATIC VALIDATION PASSED — 90/90 checks, 0 failures, 0 undocumented dependencies.**
+**STATIC VALIDATION PASSED — 113/113 checks, 0 failures, 0 undocumented dependencies.**
 
-All three migration files parse cleanly with pglast. No duplicate schema objects exist across migrations. All foreign key targets are accounted for. The migration-boundary correction (removing `claim_value_units` from Migration 0003) is confirmed in force and validated by machine check. The validator script self-reports zero failures with no manual interpretation required.
+All four migration files parse cleanly with pglast. No duplicate schema objects exist across migrations. All foreign key targets are accounted for. The role correction (four NOLOGIN group roles extracted into dedicated migration 0002b) is confirmed in force and validated by machine check. The M0001 live seed count (345) matches the validator check. The validator script self-reports zero failures with no manual interpretation required.
 
 > **Limitation statement:** Static validation cannot prove PostgreSQL runtime execution, transactional rollback, trigger behaviour, deferred-constraint behaviour, or RLS behaviour under non-superuser roles. The findings in this report reflect AST-level and text-structural analysis only.
 
@@ -22,14 +24,16 @@ All three migration files parse cleanly with pglast. No duplicate schema objects
 
 | Migration | File | Status | Owner |
 |---|---|---|---|
-| 0001 | `20260724153745_types_and_vocabularies.sql` | Applied to Supabase production | Vocabulary layer: 39 ENUM types, 39 tables, 11 ClaimValueUnit records |
-| 0002 | `20260726083201_predicate_governance_types.sql` | Pending | Predicate governance: 3 ENUM types, 1 table (display_contexts), 9 records |
-| 0003 | `20260726083201_core_schema.sql` | Pending | Core schema: 49 tables, 31 functions, 22 triggers, 15 indexes, 71 RLS policies |
+| 0001 | `20260724153745_types_and_vocabularies.sql` | Applied to Supabase production AND disposable | Vocabulary layer: 39 ENUM types, 39 tables, 345 seed records (incl. 11 ClaimValueUnit) |
+| 0002 | `20260726083201_predicate_governance_types.sql` | Applied to disposable; pending production | Predicate governance: 3 ENUM types, 1 table (display_contexts), 9 records |
+| 0002b | `20260726083202_application_roles.sql` | Pending | Application roles: agent_service, system_service, admin, governance_functions (all NOLOGIN) |
+| 0003 | `20260726083203_core_schema.sql` | Pending | Core schema: 49 tables, 31 functions, 22 triggers, 15 indexes, 71 RLS policies |
 
 **Settled ownership:**
-- Migration 0001 owns `claim_value_units`, the `unit_category` ENUM type, and all 11 ClaimValueUnit seed records.
+- Migration 0001 owns `claim_value_units`, the `unit_category` ENUM type, and all 11 ClaimValueUnit seed records. Live-confirmed total seed records: 345.
 - Migration 0002 owns predicate-governance types and `display_contexts`.
-- Migration 0003 consumes those prerequisite objects and creates the core schema.
+- Migration 0002b owns all four NOLOGIN application group roles. Discovered as missing during disposable project baseline inspection 2026-07-26.
+- Migration 0003 consumes those prerequisite objects and creates the core schema. Does not create roles.
 - Migration 0003 does not recreate or reseed `claim_value_units`.
 
 Full object-by-object ownership detail: see `MIGRATION_OBJECT_OWNERSHIP_MATRIX.md`.
@@ -52,7 +56,7 @@ See: `foundation/MIGRATION_OBJECT_OWNERSHIP_MATRIX.md`
 | Tables created | 39 |
 | RLS policies created | 39 (vocab_read_authenticated × 39 tables) |
 | Seed datasets | 39 |
-| Total seed records | 338 (incl. 11 for claim_value_units) |
+| Total seed records | **345** (incl. 11 for claim_value_units) — live-confirmed 2026-07-26 |
 | Functions, triggers, indexes | 0 each |
 | Grants | 0 (grants applied by M0003) |
 
@@ -67,6 +71,15 @@ See: `foundation/MIGRATION_OBJECT_OWNERSHIP_MATRIX.md`
 | Functions, triggers, indexes | 0 each |
 | Grants | 0 (grants applied by M0003) |
 
+### Migration 0002b (pending)
+
+| Object Type | Count |
+|---|---|
+| Roles created | 4 (agent_service, system_service, admin, governance_functions — all NOLOGIN) |
+| Tables, functions, triggers, indexes, RLS policies | 0 each |
+| Grants | 0 (grants applied by M0003) |
+| Seed records | 0 |
+
 ### Migration 0003 (pending)
 
 | Object Type | Count |
@@ -79,7 +92,7 @@ See: `foundation/MIGRATION_OBJECT_OWNERSHIP_MATRIX.md`
 | CONSTRAINT TRIGGER (SQL-deferrable) | 1 |
 | RLS-enabled tables | 25 |
 | RLS policies created | 71 |
-| Roles created | 1 (governance_functions) |
+| Roles created | **0** — roles created by M0002b |
 | ALTER OWNER statements | 8 |
 | GRANT statements | 64 |
 | Seed tables | 8 |
@@ -90,26 +103,26 @@ See: `foundation/MIGRATION_OBJECT_OWNERSHIP_MATRIX.md`
 
 ---
 
-## 4. Cumulative Counts After Migrations 0001–0003
+## 4. Cumulative Counts After Migrations 0001–0002b–0003
 
 | Object Type | Total | Breakdown |
 |---|---|---|
-| ENUM types | 42 | M0001: 39, M0002: 3, M0003: 0 |
-| Tables | 89 | M0001: 39, M0002: 1, M0003: 49 |
-| Functions | 31 | M0001: 0, M0002: 0, M0003: 31 |
-| Triggers | 22 | M0001: 0, M0002: 0, M0003: 22 |
-| Indexes (explicit) | 15 | M0001: 0, M0002: 0, M0003: 15 |
+| ENUM types | 42 | M0001: 39, M0002: 3, M0002b: 0, M0003: 0 |
+| Tables | 89 | M0001: 39, M0002: 1, M0002b: 0, M0003: 49 |
+| Functions | 31 | M0001: 0, M0002: 0, M0002b: 0, M0003: 31 |
+| Triggers | 22 | M0001: 0, M0002: 0, M0002b: 0, M0003: 22 |
+| Indexes (explicit) | 15 | M0001: 0, M0002: 0, M0002b: 0, M0003: 15 |
 | Deferred FKs (ALTER TABLE) | 4 | M0003 only |
 | CONSTRAINT TRIGGERs (SQL-deferrable) | 1 | M0003 only |
 | RLS-enabled tables | 25 | M0003 only (M0001 tables have dormant policies) |
-| RLS policies | 110 | M0001: 39, M0002: 0, M0003: 71 |
-| Roles | 1 | M0003: governance_functions |
+| RLS policies | 110 | M0001: 39, M0002: 0, M0002b: 0, M0003: 71 |
+| Roles | 4 | M0002b: agent_service, system_service, admin, governance_functions |
 | GRANT statements | 64 | M0003 only |
-| Seed records | 481 | M0001: 338, M0002: 9, M0003: 134 |
+| Seed records | **488** | M0001: 345, M0002: 9, M0002b: 0, M0003: 134 |
 
 **claim_value_units — cumulative state:**
 - Table exists: Yes (created in M0001)
-- Rows present: 11 (seeded in M0001)
+- Rows present: 11 (seeded in M0001, live-confirmed)
 - Rows added by M0003: **0**
 - FK consumer: `claims.value_unit_code` (M0003)
 - GRANT SELECT: Applied in M0003 (M0001 does not grant)
@@ -118,13 +131,14 @@ See: `foundation/MIGRATION_OBJECT_OWNERSHIP_MATRIX.md`
 
 ## 5. Syntax / AST Validation
 
-All three migrations parsed cleanly with pglast. No syntax errors. No unclassified statement types (all statement node names match expected PostgreSQL grammar constructs).
+All four migrations parsed cleanly with pglast. No syntax errors. No unclassified statement types.
 
 | Migration | Lines | Statements | Status |
 |---|---|---|---|
 | M0001 | 1,761 | 158 | CLEAN |
 | M0002 | 207 | 8 | CLEAN |
-| M0003 | 2,867 | 303 | CLEAN |
+| M0002b | 186 | 10 | CLEAN |
+| M0003 | 2,871 | 302 | CLEAN |
 
 ### Statement Breakdown — M0001 (158)
 
@@ -147,7 +161,15 @@ All three migrations parsed cleanly with pglast. No syntax errors. No unclassifi
 | InsertStmt | 1 |
 | TransactionStmt (BEGIN, COMMIT) | 2 |
 
-### Statement Breakdown — M0003 (303)
+### Statement Breakdown — M0002b (10)
+
+| Type | Count |
+|---|---|
+| CommentStmt | 4 |
+| CreateRoleStmt | 4 |
+| TransactionStmt (BEGIN, COMMIT) | 2 |
+
+### Statement Breakdown — M0003 (302)
 
 | Type | Count |
 |---|---|
@@ -155,7 +177,7 @@ All three migrations parsed cleanly with pglast. No syntax errors. No unclassifi
 | AlterTableStmt | 31 |
 | CreateFunctionStmt | 31 |
 | CreatePolicyStmt | 71 |
-| CreateRoleStmt | 1 |
+| CreateRoleStmt | **0** — roles in M0002b |
 | CreateStmt (TABLE) | 49 |
 | CreateTrigStmt | 22 |
 | GrantStmt | 64 |
@@ -170,13 +192,18 @@ All three migrations parsed cleanly with pglast. No syntax errors. No unclassifi
 
 No duplicate schema object names exist across any pair of migrations.
 
-| Comparison | Types | Tables | Functions | Triggers |
-|---|---|---|---|---|
-| M0001 vs M0002 | 0 duplicates ✓ | 0 duplicates ✓ | N/A (neither defines functions) | N/A |
-| M0001 vs M0003 | 0 duplicates ✓ | 0 duplicates ✓ | N/A (M0001 defines none) | N/A |
-| M0002 vs M0003 | 0 duplicates ✓ | 0 duplicates ✓ | N/A (M0002 defines none) | N/A |
+| Comparison | Types | Tables | Functions | Triggers | Roles |
+|---|---|---|---|---|---|
+| M0001 vs M0002 | 0 duplicates ✓ | 0 duplicates ✓ | N/A | N/A | N/A |
+| M0001 vs M0003 | 0 duplicates ✓ | 0 duplicates ✓ | N/A (M0001 defines none) | N/A | N/A |
+| M0002 vs M0003 | 0 duplicates ✓ | 0 duplicates ✓ | N/A (M0002 defines none) | N/A | N/A |
+| M0001 creates no roles | ✓ | — | — | — | 0 roles |
+| M0002 creates no roles | ✓ | — | — | — | 0 roles |
+| M0003 creates no roles | ✓ | — | — | — | 0 roles |
 
-**claim_value_units conflict resolution:** Confirmed. The `CREATE TABLE claim_value_units` and all 11 `INSERT INTO claim_value_units` records were removed from Migration 0003 on 2026-07-26 per DP decision (Option C). The table is now exclusively owned and seeded by Migration 0001. Zero occurrences of `CREATE TABLE claim_value_units` or `INSERT INTO claim_value_units` remain in Migration 0003.
+**claim_value_units conflict resolution:** Confirmed. The `CREATE TABLE claim_value_units` and all 11 `INSERT INTO claim_value_units` records were removed from Migration 0003 on 2026-07-26 per DP decision (Option C). The table is now exclusively owned and seeded by Migration 0001.
+
+**governance_functions role conflict resolution:** Confirmed. `CREATE ROLE governance_functions` was removed from Migration 0003 on 2026-07-26. The role is now exclusively created by Migration 0002b.
 
 ---
 
@@ -189,6 +216,7 @@ All external dependencies referenced by Migration 0003 are classified. Zero undo
 | Created within M0003 (earlier in file) | 30 | All core schema tables |
 | Prerequisite from M0001 | 1 | `claim_value_units` |
 | Prerequisite from M0002 | 1 | `display_contexts` |
+| Prerequisite from M0002b | 4 | `agent_service`, `system_service`, `admin`, `governance_functions` (roles consumed by GRANT and OWNER TO) |
 | Supabase/PostgreSQL built-in | 1 | `auth.users` |
 | **UNDOCUMENTED (stop condition)** | **0** | — |
 
@@ -202,10 +230,10 @@ All external dependencies referenced by Migration 0003 are classified. Zero undo
 | `gen_random_uuid()` | Function | PostgreSQL pgcrypto / pg_catalog | DEFAULT on all UUID PKs |
 | `now()` | Function | PostgreSQL built-in | DEFAULT on timestamp columns |
 | `authenticated` | Role | Supabase platform (built-in) | GRANT targets |
-| `agent_service` | Role | Supabase platform (built-in) | GRANT targets |
-| `system_service` | Role | Supabase platform (built-in) | GRANT targets |
-| `admin` | Role | Supabase platform (built-in) | GRANT targets |
-| `governance_functions` | Role | Created in M0003 itself (CreateRoleStmt) | OWNER TO target for functions |
+| `agent_service` | Role | Migration 0002b (20260726083202_application_roles.sql) — NOLOGIN group role | GRANT targets |
+| `system_service` | Role | Migration 0002b (20260726083202_application_roles.sql) — NOLOGIN group role | GRANT targets |
+| `admin` | Role | Migration 0002b (20260726083202_application_roles.sql) — NOLOGIN group role | GRANT targets |
+| `governance_functions` | Role | Migration 0002b (20260726083202_application_roles.sql) — NOLOGIN group role | OWNER TO target for functions |
 
 ---
 
@@ -224,7 +252,9 @@ All external dependencies referenced by Migration 0003 are classified. Zero undo
 | `agent_registry` | M0003 | 9 | 9 | ✓ PASS |
 | `context_profiles` | M0003 | 2 | 2 | ✓ PASS |
 
-**ON CONFLICT note:** Migration 0001 seed INSERTs use `ON CONFLICT DO NOTHING` (pre-philosophy era). Migration 0002 and 0003 use plain INSERTs per the current migration philosophy — confirmed zero ON CONFLICT clauses in M0002 and M0003 (AST-verified).
+**M0001 total seed records:** 345 (AST-confirmed). Live-confirmed against disposable project 2026-07-26.
+
+**ON CONFLICT note:** Migration 0001 seed INSERTs use `ON CONFLICT DO NOTHING` (pre-philosophy era). Migrations 0002, 0002b, and 0003 use plain INSERTs per the current migration philosophy — confirmed zero ON CONFLICT clauses (AST-verified).
 
 ---
 
@@ -254,6 +284,7 @@ All 22 `_fn_trg_*` trigger functions have a matching `trg_*` CREATE TRIGGER stat
 |---|---|---|---|
 | M0001 | 0 (policies present but ENABLE not issued) | 39 | Dormant policies |
 | M0002 | 0 | 0 | No RLS |
+| M0002b | 0 | 0 | No RLS (roles only) |
 | M0003 | 25 (AST-verified) | 71 | Active |
 
 **RLS coverage note:** M0001's 39 `vocab_read_authenticated` policies are present in the database but will not be enforced unless `ENABLE ROW LEVEL SECURITY` is issued for each table in a future migration. The vocabulary tables are currently readable without RLS enforcement, which is the intended behaviour (universal read access for authenticated sessions).
@@ -268,60 +299,43 @@ Migration files must not be modified after this manifest without regenerating th
 |---|---|---|---|---|
 | M0001 | `20260724153745_types_and_vocabularies.sql` | `10299654bc6d58ede4f685fbe2642149498ef08e652d3ea98231e449bada9f93` | 1,761 | 81,844 |
 | M0002 | `20260726083201_predicate_governance_types.sql` | `1022fd2aa57410a005da4502dc64a0ba07fc363c0f2d45d771bd39d458178656` | 207 | 8,576 |
-| M0003 | `20260726083201_core_schema.sql` | `9770d0b34398047ded53c447f6364842582addb1d54e2d2352ddd28319231c41` | 2,867 | 179,182 |
+| M0002b | `20260726083202_application_roles.sql` | `24daadbeef3afd448a5637a5a0c5cec28fea23dd48948a9f1203c15e9f064d24` | 186 | 7,885 |
+| M0003 | `20260726083203_core_schema.sql` | `e254372a6c6658ea87b68ad4b747a974e632b16ad9632eb0eefa060fac916110` | 2,871 | 179,493 |
 
-**Git working tree state:** M0001 is committed. M0002 and M0003 are untracked working-tree files as of this report date. They should be committed under version control before any live execution attempt.
+**Note on M0003 checksum change:** M0003 was previously `20260726083201_core_schema.sql` (SHA-256: `9770d0b34398047ded53c447f6364842582addb1d54e2d2352ddd28319231c41`). The file was renamed to `20260726083203_core_schema.sql` and the migration header was updated (required prior migration reference corrected; `CREATE ROLE governance_functions` removed). The new checksum above reflects the corrected file.
 
-**Timestamp:** 2026-07-26
+**Git working tree state:** M0001 and M0002 committed (hash ee8dd0f and prior). M0002b and M0003 (renamed) require commit — Task #141.
+
+**Timestamp:** 2026-07-26 (second run — post role-correction)
 
 ---
 
 ## 12. Known Environment Limitation
 
-Live execution of Migration 0003 has not been performed. The following constraints apply to the current environment:
+Live execution of Migration 0003 has not been performed. The following constraints apply:
 
 | Constraint | Detail |
 |---|---|
 | No local PostgreSQL | ARM64 Ubuntu 22.04 sandbox has no root access; PostgreSQL cannot be installed |
-| Supabase branching requires Pro plan | The LifeBook HQ project is on a Free plan; `create_branch` returned "Branching is supported only on the Pro plan or above" |
-| Migration 0002 + 0003 not yet applied | Only Migration 0001 has been applied to the live Supabase project |
-| Production database treated as immutable | The current Supabase project must not receive M0002 or M0003 until live execution validation is complete in an isolated environment |
+| Supabase branching requires Pro plan | The LifeBook HQ project is on a Free plan |
+| Migration 0002b + 0003 not yet applied | M0001 and M0002 applied to disposable; M0002b and M0003 pending |
+| Production database treated as immutable | The production project must not receive any migration until live execution validation is complete in the disposable environment |
+| Application roles missing from disposable | agent_service, system_service, admin, governance_functions did not exist on the disposable project before M0002b was authored — confirmed stop condition that triggered role correction |
 
 ---
 
 ## 13. Available Paths for Live Execution Validation
 
-The following options are available to complete live execution validation, in recommended order:
-
-| Option | Description | Cost / Effort | Risk |
-|---|---|---|---|
-| **A. Temporary Supabase Pro upgrade** | Upgrade LifeBook HQ project to Pro; create a disposable branch; apply M0001→M0002→M0003 in order; run the 13 trigger test cases; validate RLS under non-superuser roles; delete branch; downgrade if desired | ~$25 USD for one month | Lowest — identical production environment (PostgreSQL 17.6.1, ca-central-1) |
-| **B. Isolated temporary Supabase project** | Create a new Free-tier Supabase project in the same region; apply all 3 migrations; validate; delete the project | Free | Low — same platform, minor schema drift if Supabase version differs |
-| **C. Local disposable PostgreSQL 17** | Install PostgreSQL 17 in a Docker container or Nix environment on a local machine; apply migrations; run tests | Free, requires Docker or Nix | Low — requires matching `gen_random_uuid()` and `auth.users` stub |
-| **D. CI PostgreSQL 17 service container** | Add a GitHub Actions workflow with `services: postgres:17`; apply migrations; run test assertions | Free if repo is public or has available Actions minutes | Low — automated, reproducible |
-
-**Recommendation:** Option A (temporary Supabase branch) is the most reliable because it uses an exact replica of the production environment including PostgreSQL version, extension set, auth schema, and row-level storage. Options B–D require stub work for `auth.users` or may introduce subtle version differences.
+Live execution is planned against disposable project `tmvtdvrggmoiidvxdjzr` (ca-central-1, PostgreSQL 17.6.1.147). M0001 and M0002 are applied. Next step is to apply M0002b (application_roles), then M0003 (core_schema), and run the full trigger/RLS/constraint test matrix per the 17-step plan authorized by DP 2026-07-26.
 
 ---
 
 ## 14. Final Recommendation
 
-Migration 0003 is structurally sound at the static level. The migration-boundary conflict (`claim_value_units` duplicated between M0001 and M0003) has been resolved and verified by machine check. All 90 static validation checks pass. Zero undocumented dependencies exist.
+**Proceed to live execution on disposable project.** Apply M0002b, then M0003. All static checks pass. The migration set is internally consistent, dependency-complete, and role-correct. No further static blockers exist.
 
-**Recommended next actions, in order:**
-
-1. Commit M0002 and M0003 to version control under the `supabase/migrations/` path.
-2. Select a live execution environment from the options in Section 13.
-3. Apply migrations 0001 → 0002 → 0003 in a disposable environment.
-4. Execute the 13 trigger test cases for `trg_claim_numeric_unit_check`.
-5. Validate `uq_lifebook_entities_active` partial unique constraint.
-6. Validate RLS under `authenticated`, `agent_service`, and `system_service` roles.
-7. Confirm W11 deferral (`file_storage_references` REVOKE not present in M0003).
-8. Confirm rollback and rebuild from scratch (apply all 3 migrations from zero).
-9. Produce the live execution validation report.
-
-No architectural changes are authorised. The static validation phase is complete.
+The DP-authorized stop condition (missing application roles) has been resolved by the creation of M0002b. The stop condition check (pre-flight query: zero rows for all four role names in pg_roles) should be run against the disposable project before applying M0002b.
 
 ---
 
-*FINAL_STATIC_VALIDATION_REPORT.md — LifeBook HQ — 2026-07-26*
+*FINAL_STATIC_VALIDATION_REPORT.md — LifeBook HQ — 2026-07-26 (v2, post-role-correction)*

@@ -1,11 +1,17 @@
 -- =============================================================================
 -- Migration 0003: Core Schema
--- File: 20260726083201_core_schema.sql
+-- File: 20260726083203_core_schema.sql
 -- Date: 2026-07-26
--- Depends on: Migration 0001 (37 enum types), Migration 0002 (3 enum types + display_contexts)
--- Creates: 50 tables, 3 deferred FKs, 8 indexes + 1 partial unique index,
---          9 helper functions, 22 triggers, RLS on 25 tables, 71 RLS policies,
---          minimum-privilege grants, reference catalogue seed data
+-- Required prior migrations:
+--   20260724153745_types_and_vocabularies   (39 enum types, 39 vocabulary tables)
+--   20260726083201_predicate_governance_types (3 enum types, display_contexts)
+--   20260726083202_application_roles          (agent_service, system_service, admin, governance_functions)
+-- Creates: 49 tables, 4 deferred FKs (ALTER TABLE), 15 explicit indexes,
+--          31 functions (9 helpers + 22 trigger functions), 22 triggers,
+--          RLS on 25 tables, 71 RLS policies, 64 GRANT statements,
+--          reference catalogue seed data (134 records)
+-- Note: governance_functions role is created by 20260726083202_application_roles.
+--       This migration consumes it via ALTER FUNCTION ... OWNER TO governance_functions.
 -- Author: Migration — LifeBook HQ Core Schema v0.3
 -- =============================================================================
 
@@ -1167,11 +1173,9 @@ CREATE INDEX idx_contest_records_contested_record     ON contest_records (contes
 -- NOTE: governance_functions role must exist before SECURITY DEFINER ownership
 -- ---------------------------------------------------------------------------
 
--- Create the dedicated governance functions role (no login, no superuser)
--- governance_functions role: must not exist before this migration runs.
--- If this role already exists, the migration will fail — that is the intended behavior.
--- A pre-existing role indicates unexpected state that must be investigated.
-CREATE ROLE governance_functions NOLOGIN NOINHERIT;
+-- governance_functions role is created by 20260726083202_application_roles.
+-- This migration consumes it via ALTER FUNCTION ... OWNER TO governance_functions.
+-- If that role does not exist, OWNER TO statements below will fail — correct behaviour.
 
 -- ---------------------------------------------------------------------------
 -- 4.1 fn_user_is_agent — NOT SECURITY DEFINER
