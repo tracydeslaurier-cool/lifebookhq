@@ -34,8 +34,8 @@ still writing the correct migration-history record into `supabase_migrations.sch
 | Byte count   | 185,021                                                                  |
 | Line count   | 2,953                                                                    |
 | SHA-256      | `136b1f255b019ce97bbd7f62e868c0f411f941ebde1658a638d21d19276a54cc`       |
-| Git commit   | `ba532ea`                               |
-| Commit msg   | `fix(M0003): add GRANT USAGE, CREATE ON SCHEMA public TO governance_functions (DEF-0003 part 2)` |
+| Git commit   | `af22a0f`                               |
+| Commit msg   | `fix(M0003): move pol_claims/narratives_ai_promotion_denied after Addendum (DEF-0004)` |
 | Working tree | Clean (no uncommitted changes to this file)                              |
 
 **Do not modify the migration file.** If a runtime defect is found, a new DP session is required
