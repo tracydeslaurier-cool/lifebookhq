@@ -93,7 +93,7 @@ See: `foundation/MIGRATION_OBJECT_OWNERSHIP_MATRIX.md`
 | Functions created | 31 (9 public helpers + 22 trigger functions) |
 | Triggers created | 22 |
 | Indexes created | 14 (13 performance + 1 partial unique) |
-| Deferred FKs (file-order ALTER TABLE) | 4 |
+| Deferred FKs (file-order ALTER TABLE) | 4 — added via ALTER TABLE for ordering; NOT SQL-DEFERRABLE (condeferrable=false) |
 | CONSTRAINT TRIGGER (SQL-deferrable) | 1 |
 | RLS-enabled tables | 25 |
 | RLS policies created | 71 |
@@ -117,7 +117,7 @@ See: `foundation/MIGRATION_OBJECT_OWNERSHIP_MATRIX.md`
 | Functions | 31 | M0001: 0, M0002: 0, M0002b: 0, M0003: 31 |
 | Triggers | 22 | M0001: 0, M0002: 0, M0002b: 0, M0003: 22 |
 | Indexes (explicit) | 14 | M0001: 0, M0002: 0, M0002b: 0, M0003: 14 |
-| Deferred FKs (ALTER TABLE) | 4 | M0003 only |
+| Deferred FKs (ALTER TABLE, NOT SQL-DEFERRABLE) | 4 | M0003 only |
 | CONSTRAINT TRIGGERs (SQL-deferrable) | 1 | M0003 only |
 | RLS-enabled tables | 25 | M0003 only (M0001 tables have dormant policies) |
 | RLS policies | 110 | M0001: 39, M0002: 0, M0002b: 0, M0003: 71 |

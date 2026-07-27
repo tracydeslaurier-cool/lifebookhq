@@ -49,9 +49,9 @@ Within a single migration file, tables must be created in an order that satisfie
 
 - Referenced tables must exist before referencing tables
 - Self-referential FKs (e.g., `claims.superseded_by_claim_id → claims`) are declared at creation time and require no special handling
-- Circular dependencies (where table A references table B and table B references table A) are resolved by declaring one FK as deferred and adding it via `ALTER TABLE` after both tables exist
+- Circular dependencies (where table A references table B and table B references table A) are resolved by declaring one FK as "file-order deferred" — added via `ALTER TABLE` after both tables exist. These FKs are **not** SQL-DEFERRABLE (they do not carry `DEFERRABLE INITIALLY DEFERRED/IMMEDIATE`); they are simply positioned later in the migration file to satisfy creation-order requirements.
 
-Every deferred FK in a migration is documented at the top of the migration file under **Deferred FK declarations**, specifying the table, field, target, and the step number within the migration where the `ALTER TABLE` is executed.
+Every file-order deferred FK in a migration is documented at the top of the migration file under **Deferred FK declarations**, specifying the table, field, target, and the step number within the migration where the `ALTER TABLE` is executed.
 
 The core-schema migration (0003) carries the following deferred FK:
 

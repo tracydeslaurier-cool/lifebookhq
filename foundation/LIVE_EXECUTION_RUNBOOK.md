@@ -286,26 +286,32 @@ ORDER BY proname;
 -- fn_is_subject_of, fn_lb_membership_role, fn_user_is_agent
 ```
 
-#### V5 — RLS policy count (expect 71)
+#### V5 — RLS policy count (expect 110 cumulative)
 ```sql
 SELECT count(*) AS policy_count
 FROM pg_policies
 WHERE schemaname = 'public';
--- Expected: 71
+-- Expected: 110 (cumulative across all migrations)
+-- Breakdown: M0001 vocab tables 39, M0002b display_contexts 0, M0003 core tables 71
+-- Note: earlier runbook drafts said 71 — that was M0003-only scope. Cumulative is 110.
 ```
 
-#### V6 — Deferred FK constraints (expect 3)
+#### V6 — File-order ALTER TABLE FK constraints (exist, NOT SQL-deferrable)
 ```sql
 SELECT conname, contype, condeferrable, condeferred
 FROM pg_constraint
 WHERE conname IN (
   'fk_authority_basis_claim',
   'fk_display_policy_approval_record',
-  'fk_permission_cache_approval_policy'
+  'fk_permission_cache_approval_policy',
+  'fk_claims_context_manifest'
 )
 ORDER BY conname;
--- Expected: 3 rows, all condeferrable = true, condeferred = false (DEFERRABLE INITIALLY IMMEDIATE)
--- fk_permission_cache_approval_policy is the Deferred FK 3 (lifebook_person_contexts → approval_policies)
+-- Expected: 4 rows (all present), condeferrable = FALSE, condeferred = FALSE
+-- These are "file-order deferred" FKs — added via ALTER TABLE to resolve circular
+-- dependency ordering. They are NOT SQL-DEFERRABLE (DEFERRABLE INITIALLY DEFERRED/IMMEDIATE).
+-- D-001 resolution (2026-07-26): 0 DEFERRABLE FK constraints is correct by design.
+-- Earlier runbook drafts incorrectly expected condeferrable=true. Resolved — specification drift.
 ```
 
 #### V7 — Partial unique index exists
