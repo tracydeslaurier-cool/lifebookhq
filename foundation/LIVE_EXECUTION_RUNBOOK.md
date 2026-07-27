@@ -35,7 +35,7 @@ still writing the correct migration-history record into `supabase_migrations.sch
 | Line count   | 2,903                                                                    |
 | SHA-256      | `2559ca0e56769bc159e5943bbdf7c1326bfb154179440a218e74fb9d90047f8a`       |
 | Git commit   | `5dac8d3`                               |
-| Commit msg   | `fix(m0003): correct persons entity_id FK references and RLS joins; add semantic validator` |
+| Commit msg   | `fix(M0003): add GRANT governance_functions TO current_user (DEF-0003)` |
 | Working tree | Clean (no uncommitted changes to this file)                              |
 
 **Do not modify the migration file.** If a runtime defect is found, a new DP session is required
