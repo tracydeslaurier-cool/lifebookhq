@@ -34,8 +34,8 @@ still writing the correct migration-history record into `supabase_migrations.sch
 | Byte count   | 183,741                                                                  |
 | Line count   | 2,933                                                                    |
 | SHA-256      | `af142435fa060c6e58c6917ef920eb281b5c980c4636a1d36a3d8fcf78130a4a`       |
-| Git commit   | pending                                 |
-| Commit msg   | pending                                                                   |
+| Git commit   | `ba532ea`                               |
+| Commit msg   | `fix(M0003): add GRANT USAGE, CREATE ON SCHEMA public TO governance_functions (DEF-0003 part 2)` |
 | Working tree | Clean (no uncommitted changes to this file)                              |
 
 **Do not modify the migration file.** If a runtime defect is found, a new DP session is required
