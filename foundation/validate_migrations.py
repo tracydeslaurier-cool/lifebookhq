@@ -1392,10 +1392,13 @@ def main():
         else f"idx at char {idx_pos} > alter at char {alter_review_pos}"
     )
 
-    # EO-004: GRANT governance_functions TO current_user must appear in M0003 before
+    # EO-004: GRANT governance_functions TO postgres must appear in M0003 before
     # the first ALTER FUNCTION ... OWNER TO governance_functions statement.
-    # Without it Supabase CLI raises SQLSTATE 42501 (must be able to SET ROLE).
-    grant_role_pos = m0003_raw.find('GRANT governance_functions TO current_user')
+    # Supabase migrations execute under the postgres role; without this GRANT,
+    # SQLSTATE 42501 is raised (must be able to SET ROLE governance_functions).
+    # NOTE: GRANT ... TO current_user causes unexpected EOF / connection termination
+    # on Supabase CLI — postgres must be named explicitly.
+    grant_role_pos = m0003_raw.find('GRANT governance_functions TO postgres')
     first_owner_to_pos = m0003_raw.find('OWNER TO governance_functions')
     eo004_ok = (
         grant_role_pos != -1 and
@@ -1409,18 +1412,21 @@ def main():
         f" (grant must precede OWNER TO)"
     )
     check(
-        "EO-004: GRANT governance_functions TO current_user precedes first OWNER TO "
+        "EO-004: GRANT governance_functions TO postgres precedes first OWNER TO "
         "governance_functions in M0003",
         eo004_ok,
         eo004_detail
     )
 
-    # Also verify M0003 has exactly 1 GrantRoleStmt (no unwanted role membership changes)
+    # EO-005: Exactly 1 GrantRoleStmt in M0003 (no unwanted role membership changes),
+    # and it must grant governance_functions to postgres specifically.
     m0003_grant_role_count = m0003_counts.get('GrantRoleStmt', 0)
+    grant_to_postgres_present = 'GRANT governance_functions TO postgres' in m0003_raw
     check(
-        "EO-005: M0003 has exactly 1 GrantRoleStmt (governance_functions bootstrap grant only)",
-        m0003_grant_role_count == 1,
-        f"found {m0003_grant_role_count}"
+        "EO-005: M0003 has exactly 1 GrantRoleStmt granting governance_functions TO postgres",
+        m0003_grant_role_count == 1 and grant_to_postgres_present,
+        f"GrantRoleStmt count={m0003_grant_role_count}, "
+        f"GRANT governance_functions TO postgres present={grant_to_postgres_present}"
     )
 
     # EO-003: No CREATE INDEX in M0003 Phase 3 section references review_status
