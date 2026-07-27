@@ -11,11 +11,31 @@
 --          RLS on 25 tables, 71 RLS policies, 64 GRANT statements,
 --          reference catalogue seed data (134 records)
 -- Note: governance_functions role is created by 20260726083202_application_roles.
---       This migration consumes it via ALTER FUNCTION ... OWNER TO governance_functions.
+--       This migration issues GRANT governance_functions TO current_user immediately
+--       after BEGIN to allow ALTER FUNCTION ... OWNER TO governance_functions (SQLSTATE
+--       42501 otherwise: Supabase migration executor is not auto-member of the role).
 -- Author: Migration — LifeBook HQ Core Schema v0.3
 -- =============================================================================
 
 BEGIN;
+
+-- ── Ownership transfer bootstrap ───────────────────────────────────────────
+-- PostgreSQL requires the executing session role to be a member of any role
+-- to which it transfers object ownership (ALTER FUNCTION ... OWNER TO <role>).
+-- Specifically: SQLSTATE 42501 "must be able to SET ROLE <role>" is raised if
+-- the executor is not a member of the target role.
+--
+-- governance_functions is NOLOGIN (correct — no application should log in as it).
+-- However, the Supabase migration executor (postgres / project owner role) is
+-- not automatically a member of governance_functions after M0002b creates it.
+-- This GRANT provides SET ROLE access for the Phase 3 OWNER TO statements below.
+--
+-- GRANT role TO role produces GrantRoleStmt (not GrantStmt) — it does not
+-- change the "64 GRANT statements" count in the header; it is separate.
+-- This GRANT is permanent (no REVOKE): future migrations may also need to
+-- ALTER functions owned by governance_functions.
+-- GRANT is idempotent — safe on re-application if membership already exists.
+GRANT governance_functions TO current_user;
 
 -- =============================================================================
 -- PHASE 1 — TABLES (Batches 1–14)
@@ -1177,8 +1197,9 @@ CREATE INDEX idx_contest_records_contested_record     ON contest_records (contes
 -- ---------------------------------------------------------------------------
 
 -- governance_functions role is created by 20260726083202_application_roles.
--- This migration consumes it via ALTER FUNCTION ... OWNER TO governance_functions.
--- If that role does not exist, OWNER TO statements below will fail — correct behaviour.
+-- This migration transfers function ownership via ALTER FUNCTION ... OWNER TO governance_functions.
+-- GRANT governance_functions TO current_user (issued after BEGIN above) provides SET ROLE access.
+-- If the role does not exist or the GRANT above was skipped, OWNER TO will fail — correct behaviour.
 
 -- ---------------------------------------------------------------------------
 -- 4.1 fn_user_is_agent — NOT SECURITY DEFINER

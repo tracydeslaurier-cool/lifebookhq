@@ -2,7 +2,7 @@
 ## LifeBook HQ — Migrations 0001, 0002, 0002b (application_roles), 0003
 
 **Report date:** 2026-07-26  
-**Validator:** validate_migrations.py v1.2 (pglast v8.4, AST-aware) — extended with M0002b, M0001 seed-total checks, Section 14 semantic schema validator (SEM-001–SEM-012), Section 15 regression tests (REGR-001–REGR-010)  
+**Validator:** validate_migrations.py v1.3 (pglast v8.4, AST-aware) — extended with M0002b, M0001 seed-total checks, Section 14 semantic schema validator (SEM-001–SEM-012), Section 15 regression tests (REGR-001–REGR-010), Section 16 execution-order validation (EO-001–EO-005)  
 **Migration boundary correction applied:** Yes — claim_value_units removed from Migration 0003; owned by Migration 0001  
 **Role correction applied (2026-07-26):** Yes — agent_service, system_service, admin, governance_functions created by new Migration 0002b (20260726083202_application_roles.sql); CREATE ROLE removed from core_schema; core_schema renamed to 20260726083203_core_schema.sql  
 **M0001 seed count corrected (2026-07-26):** 338 → 345 (live-confirmed from disposable project)  
@@ -13,7 +13,7 @@
 
 ## Executive Result
 
-**STATIC VALIDATION PASSED — 134/134 checks, 0 failures, 0 undocumented dependencies.**
+**STATIC VALIDATION PASSED — 139/139 checks, 0 failures, 0 undocumented dependencies.**
 
 All four migration files parse cleanly with pglast. No duplicate schema objects exist across migrations. All foreign key targets are accounted for. The role correction (four NOLOGIN group roles extracted into dedicated migration 0002b) is confirmed in force and validated by machine check. The M0001 live seed count (345) matches the validator check. The FK defect (REFERENCES persons(id) → persons(entity_id)) has been corrected in M0003 and validated by new semantic and regression check sections. The validator script self-reports zero failures with no manual interpretation required.
 
@@ -143,7 +143,7 @@ All four migrations parsed cleanly with pglast. No syntax errors. No unclassifie
 | M0001 | 1,761 | 158 | CLEAN |
 | M0002 | 207 | 8 | CLEAN |
 | M0002b | 186 | 10 | CLEAN |
-| M0003 | 2,882 | 302 | CLEAN |
+| M0003 | 2,903 | 302 | CLEAN |
 
 ### Statement Breakdown — M0001 (158)
 
@@ -305,18 +305,19 @@ Migration files must not be modified after this manifest without regenerating th
 | M0001 | `20260724153745_types_and_vocabularies.sql` | `10299654bc6d58ede4f685fbe2642149498ef08e652d3ea98231e449bada9f93` | 1,761 | 81,844 |
 | M0002 | `20260726083201_predicate_governance_types.sql` | `1022fd2aa57410a005da4502dc64a0ba07fc363c0f2d45d771bd39d458178656` | 207 | 8,576 |
 | M0002b | `20260726083202_application_roles.sql` | `24daadbeef3afd448a5637a5a0c5cec28fea23dd48948a9f1203c15e9f064d24` | 186 | 7,885 |
-| M0003 | `20260726083203_core_schema.sql` | `6fa61db4550c57a92693daa9f5fb88afa6bc73881ef3f275fb85464a4d4e0af1` | 2,882 | 180,269 |
+| M0003 | `20260726083203_core_schema.sql` | `2559ca0e56769bc159e5943bbdf7c1326bfb154179440a218e74fb9d90047f8a` | 2,903 | 181,758 |
 
-**Note on M0003 checksum change:** M0003 has undergone four corrections since initial authoring:
+**Note on M0003 checksum change:** M0003 has undergone five corrections since initial authoring:
 1. Renamed from `20260726083201_core_schema.sql`; header updated; `CREATE ROLE governance_functions` removed (SHA-256 was: `9770d0b34398047ded53c447f6364842582addb1d54e2d2352ddd28319231c41`, then: `e254372a6c6658ea87b68ad4b747a974e632b16ad9632eb0eefa060fac916110`).
 2. Removed stale `idx_entities_lifebook_id` index 2026-07-26 — entities has no `lifebook_id` column; index count reduced 15 → 14 (SHA-256: `fbd60d9f5208be8b6af567cc341a80e7a4ccfc67c5c909a5da541609f395a60a`, 179,606 bytes).
 3. FK defect correction 2026-07-26 — REFERENCES persons(id) → persons(entity_id) in 3 tables; RLS joins p.id → p.entity_id in 8 locations. Line count unchanged (2,872); byte count 179,606 → 179,683.
-4. Authored-order defect correction 2026-07-26 — `CREATE INDEX idx_claims_lifebook_review_access` moved from Phase 3 (line 1167, before `ALTER TABLE claims ADD COLUMN review_status`) to after the Addendum ALTER TABLE that adds review_status. Root cause: SQLSTATE 42703 at runtime on disposable project iximbhwsjmppsdiwdixl. Lines 2,872 → 2,882; bytes 179,683 → 180,269. Validator extended with Section 16 (EO-001 through EO-003); all 137 checks pass.
+4. Authored-order defect correction 2026-07-26 — `CREATE INDEX idx_claims_lifebook_review_access` moved from Phase 3 (before `ALTER TABLE claims ADD COLUMN review_status`) to after the Addendum ALTER TABLE. Root cause: SQLSTATE 42703 on iximbhwsjmppsdiwdixl. Lines 2,872 → 2,882; bytes 179,683 → 180,269. Validator extended with Section 16 EO-001–EO-003.
+5. Ownership transfer bootstrap 2026-07-26 — `GRANT governance_functions TO current_user` added immediately after BEGIN. Root cause: SQLSTATE 42501 "must be able to SET ROLE governance_functions" on iximbhwsjmppsdiwdixl. Supabase migration executor is not automatically a member of governance_functions after M0002b creates it. Lines 2,882 → 2,903; bytes 180,269 → 181,758. Validator extended with EO-004–EO-005; 139/139 checks pass.
 The checksum above reflects the fully corrected file.
 
-**Git working tree state:** M0001 and M0002 committed (hash ee8dd0f and prior). M0002b and M0003 (renamed) require commit — Task #141.
+**Git working tree state:** All four migrations committed. See commit log for hashes.
 
-**Timestamp:** 2026-07-26 (second run — post role-correction)
+**Timestamp:** 2026-07-26 (updated post ownership-transfer bootstrap correction)
 
 ---
 
@@ -335,6 +336,31 @@ The checksum above reflects the fully corrected file.
 | Locations fixed | Lines 1056, 1109, 1128 (FK definitions); lines 2337, 2343, 2357, 2363, 2377, 2383, 2395, 2406 (RLS joins) |
 | Static validation gap | pglast AST parsing cannot resolve FK target column existence without live schema state; the defect was present in the file since authoring and passed all prior static checks |
 | Gap closure | Section 14 semantic schema validator (SEM-001–SEM-012) and Section 15 regression tests (REGR-001–REGR-010) added to `validate_migrations.py` to close this gap; SEM-002, SEM-004, SEM-007–009, REGR-005–008 directly guard against recurrence |
+
+### DEF-0002 — CREATE INDEX idx_claims_lifebook_review_access before ADD COLUMN review_status
+
+| Field | Detail |
+|---|---|
+| Defect ID | DEF-0002 |
+| Defect | `CREATE INDEX idx_claims_lifebook_review_access ON claims (lifebook_id, review_status, access_classification)` placed in Phase 3 (line 1167), before `ALTER TABLE claims ADD COLUMN review_status` in the Addendum (line 2789) |
+| Detection | Runtime failure SQLSTATE 42703 on disposable project `iximbhwsjmppsdiwdixl` — "column review_status does not exist" |
+| Root cause | Use-before-definition: CREATE INDEX executed before the ALTER TABLE that creates the referenced column |
+| Fix applied | Removed CREATE INDEX from Phase 3; added it after `ALTER TABLE narratives ADD COLUMN review_status` in the Addendum, with explanatory comments at both locations |
+| Files modified | `supabase/migrations/20260726083203_core_schema.sql`, `foundation/validate_migrations.py` |
+| Gap closure | Section 16 EO-001–EO-003 added to `validate_migrations.py` with execution-order model (`check_index_execution_order`, `strip_dollar_quoted_blocks`); detects use-before-definition for all CREATE INDEX statements |
+
+### DEF-0003 — GRANT governance_functions TO current_user missing before OWNER TO
+
+| Field | Detail |
+|---|---|
+| Defect ID | DEF-0003 |
+| Defect | `ALTER FUNCTION fn_lb_membership_role(UUID) OWNER TO governance_functions` (and 7 further OWNER TO statements) issued without the migration executor being a member of `governance_functions` |
+| Detection | Runtime failure SQLSTATE 42501 on disposable project `iximbhwsjmppsdiwdixl` — "must be able to SET ROLE governance_functions" |
+| Root cause | PostgreSQL requires SET ROLE access to the target role for ownership transfer. Supabase migration executor (postgres / project owner) is not automatically a member of `governance_functions` after M0002b creates it. `GrantRoleStmt` was absent from M0003. |
+| Fix applied | `GRANT governance_functions TO current_user;` added to M0003 immediately after BEGIN, before any OWNER TO statements. `current_user` is portable — matches the Supabase migration executor regardless of role name. Grant is permanent (not revoked) to support future migrations that may also ALTER functions owned by governance_functions. |
+| Files modified | `supabase/migrations/20260726083203_core_schema.sql`, `foundation/validate_migrations.py` |
+| Design note | M0002b's invariant ("no GRANT statements — grants are M0003's scope") is preserved. The membership grant lives in M0003 alongside all other grants. `GrantRoleStmt` is a distinct AST type from `GrantStmt`; the existing "64 GRANT statements" count is unaffected. |
+| Gap closure | EO-004 (GRANT precedes OWNER TO positionally) and EO-005 (exactly 1 GrantRoleStmt in M0003) added to `validate_migrations.py` Section 16 |
 
 ---
 
@@ -366,4 +392,4 @@ The DP-authorized stop condition (missing application roles) has been resolved b
 
 ---
 
-*FINAL_STATIC_VALIDATION_REPORT.md — LifeBook HQ — 2026-07-26 (v4, post-role-correction, post-index-correction, post-FK-defect-correction DEF-0001)*
+*FINAL_STATIC_VALIDATION_REPORT.md — LifeBook HQ — 2026-07-26 (v6, post-role-correction, post-index-correction, post-FK-defect-correction DEF-0001, post-authored-order DEF-0002, post-ownership-bootstrap DEF-0003; 139/139 checks)*

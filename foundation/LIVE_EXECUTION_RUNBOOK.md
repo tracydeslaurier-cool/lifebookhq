@@ -4,7 +4,7 @@
 **Status:** READY FOR EXECUTION  
 **Authorized by:** Discovery Partner — 2026-07-26  
 **Migration target:** Disposable project `iximbhwsjmppsdiwdixl` (lifebook-disposable-3)  
-**Superseded project:** `iximbhwsjmppsdiwdixl` — paused; version-stamp inconsistency; see INCIDENT_REPORT_iximbhwsjmppsdiwdixl.md  
+**Superseded project:** `gunkacvftnvwxcppqvxr` — paused; MCP/CLI version-stamp inconsistency; see INCIDENT_REPORT_gunkacvftnvwxcppqvxr.md  
 **Production project:** `qrdoebsoviksdaxnjyak` — **DO NOT TOUCH**  
 **Authored:** 2026-07-26
 
@@ -13,7 +13,7 @@
 ## Why CLI Is Required
 
 The Supabase MCP `apply_migration` tool requires the full SQL as a single string parameter.
-`20260726083203_core_schema.sql` is 180,269 bytes (~45K tokens). This exceeds the model output
+`20260726083203_core_schema.sql` is 181,758 bytes (~45K tokens). This exceeds the model output
 token limit for a single tool invocation. This is a tooling transport limitation only — it is not
 a schema defect. The migration file is correct and fully validated.
 
@@ -31,9 +31,9 @@ still writing the correct migration-history record into `supabase_migrations.sch
 | Field        | Value                                                                    |
 |--------------|--------------------------------------------------------------------------|
 | File         | `supabase/migrations/20260726083203_core_schema.sql`                     |
-| Byte count   | 180,269                                                                  |
-| Line count   | 2,882                                                                    |
-| SHA-256      | `6fa61db4550c57a92693daa9f5fb88afa6bc73881ef3f275fb85464a4d4e0af1`       |
+| Byte count   | 181,758                                                                  |
+| Line count   | 2,903                                                                    |
+| SHA-256      | `2559ca0e56769bc159e5943bbdf7c1326bfb154179440a218e74fb9d90047f8a`       |
 | Git commit   | `cc85515`                               |
 | Commit msg   | `fix(m0003): correct persons entity_id FK references and RLS joins; add semantic validator` |
 | Working tree | Clean (no uncommitted changes to this file)                              |
@@ -183,7 +183,7 @@ sha256sum supabase/migrations/20260726083203_core_schema.sql
 
 **Expected:**
 ```
-6fa61db4550c57a92693daa9f5fb88afa6bc73881ef3f275fb85464a4d4e0af1  supabase/migrations/20260726083203_core_schema.sql
+2559ca0e56769bc159e5943bbdf7c1326bfb154179440a218e74fb9d90047f8a  supabase/migrations/20260726083203_core_schema.sql
 ```
 
 If the SHA-256 does not match — **STOP. Do not apply. Report to DP.**
@@ -394,6 +394,17 @@ SELECT
 -- display_contexts: 9
 ```
 
+#### V13 — governance_functions role membership (DEF-0003 verification)
+```sql
+SELECT r.rolname AS role, mr.rolname AS member
+FROM pg_auth_members m
+JOIN pg_roles r  ON r.oid = m.roleid
+JOIN pg_roles mr ON mr.oid = m.member
+WHERE r.rolname = 'governance_functions';
+-- Expected: 1 row — role='governance_functions', member='postgres' (or project owner role)
+-- If 0 rows: GRANT governance_functions TO current_user in M0003 did not execute — STOP.
+```
+
 ---
 
 ## Expected Migration-History Entries
@@ -429,7 +440,7 @@ NOT contain a `20260726083203` entry.
 
 If `supabase db push` exits 0 but a validation query returns unexpected results:
 1. Stop all further execution.
-2. Run the full V1–V12 suite to determine scope of divergence.
+2. Run the full V1–V13 suite to determine scope of divergence.
 3. Report all divergences to DP before any remediation.
 
 ### Link Step Fails
@@ -471,7 +482,7 @@ completes successfully.
 After `supabase migration list` confirms all 4 migrations applied (Step 6), return
 to the active session and confirm. The session will then proceed with:
 
-1. Full V1–V12 SQL validation (using MCP `execute_sql` on `iximbhwsjmppsdiwdixl`)
+1. Full V1–V13 SQL validation (using MCP `execute_sql` on `iximbhwsjmppsdiwdixl`)
 2. Trigger test matrix (22 triggers — 6 valid + 13 rejected numeric unit scenarios)
 3. Deferred constraint integrity (3 deferred FKs + 1 constraint trigger)
 4. Partial unique-index tests (`uq_lifebook_entities_active`)
@@ -493,8 +504,8 @@ to the active session and confirm. The session will then proceed with:
 > tooling transport limitation only. It is not a schema defect and does not affect the
 > validity of the migration. The migration file is frozen at commit
 > `cc85515`, SHA-256
-> `6fa61db4550c57a92693daa9f5fb88afa6bc73881ef3f275fb85464a4d4e0af1`, 180,269 bytes,
-> 2,882 lines. No further schema modifications are authorised until CLI execution either
+> `2559ca0e56769bc159e5943bbdf7c1326bfb154179440a218e74fb9d90047f8a`, 181,758 bytes,
+> 2,903 lines. No further schema modifications are authorised until CLI execution either
 > succeeds completely or exposes a genuine runtime SQL defect.
 
 ---

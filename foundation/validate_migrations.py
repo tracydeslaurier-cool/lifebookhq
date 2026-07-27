@@ -1392,6 +1392,37 @@ def main():
         else f"idx at char {idx_pos} > alter at char {alter_review_pos}"
     )
 
+    # EO-004: GRANT governance_functions TO current_user must appear in M0003 before
+    # the first ALTER FUNCTION ... OWNER TO governance_functions statement.
+    # Without it Supabase CLI raises SQLSTATE 42501 (must be able to SET ROLE).
+    grant_role_pos = m0003_raw.find('GRANT governance_functions TO current_user')
+    first_owner_to_pos = m0003_raw.find('OWNER TO governance_functions')
+    eo004_ok = (
+        grant_role_pos != -1 and
+        first_owner_to_pos != -1 and
+        grant_role_pos < first_owner_to_pos
+    )
+    eo004_detail = (
+        f"grant at char {grant_role_pos} < first OWNER TO at char {first_owner_to_pos}"
+        if eo004_ok else
+        f"grant at char {grant_role_pos}, first OWNER TO at char {first_owner_to_pos}"
+        f" (grant must precede OWNER TO)"
+    )
+    check(
+        "EO-004: GRANT governance_functions TO current_user precedes first OWNER TO "
+        "governance_functions in M0003",
+        eo004_ok,
+        eo004_detail
+    )
+
+    # Also verify M0003 has exactly 1 GrantRoleStmt (no unwanted role membership changes)
+    m0003_grant_role_count = m0003_counts.get('GrantRoleStmt', 0)
+    check(
+        "EO-005: M0003 has exactly 1 GrantRoleStmt (governance_functions bootstrap grant only)",
+        m0003_grant_role_count == 1,
+        f"found {m0003_grant_role_count}"
+    )
+
     # EO-003: No CREATE INDEX in M0003 Phase 3 section references review_status
     # (the column that previously caused SQLSTATE 42703 at statement 72).
     # Detect by finding the Phase 3 block boundary and checking for review_status.
