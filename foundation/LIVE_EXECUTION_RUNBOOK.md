@@ -3,7 +3,8 @@
 
 **Status:** READY FOR EXECUTION  
 **Authorized by:** Discovery Partner — 2026-07-26  
-**Migration target:** Disposable project `gunkacvftnvwxcppqvxr`  
+**Migration target:** Disposable project `iximbhwsjmppsdiwdixl` (lifebook-disposable-3)  
+**Superseded project:** `iximbhwsjmppsdiwdixl` — paused; version-stamp inconsistency; see INCIDENT_REPORT_iximbhwsjmppsdiwdixl.md  
 **Production project:** `qrdoebsoviksdaxnjyak` — **DO NOT TOUCH**  
 **Authored:** 2026-07-26
 
@@ -67,7 +68,7 @@ supabase --version
 
 ### 2. Supabase Account Access
 
-You must be authenticated to the Supabase account that owns project `gunkacvftnvwxcppqvxr`.
+You must be authenticated to the Supabase account that owns project `iximbhwsjmppsdiwdixl`.
 
 ### 3. Repository
 
@@ -96,7 +97,7 @@ access token (set via `supabase login`) and the project ref flag directly.
 ### 5. What Must Already Be Applied
 
 Verify before proceeding (see Step 3 below) that exactly these three migrations exist
-in `schema_migrations` on `gunkacvftnvwxcppqvxr`:
+in `schema_migrations` on `iximbhwsjmppsdiwdixl`:
 - `20260724153745` — types_and_vocabularies
 - `20260726083201` — predicate_governance_types
 - `20260726083202` — application_roles
@@ -119,7 +120,7 @@ supabase login
 ```
 
 This opens a browser window. Authenticate with the Supabase account that owns
-`gunkacvftnvwxcppqvxr`. On success you will see:
+`iximbhwsjmppsdiwdixl`. On success you will see:
 ```
 You are now logged in. Happy coding!
 ```
@@ -129,10 +130,10 @@ You are now logged in. Happy coding!
 ### Step 2 — Link the Disposable Project
 
 ```bash
-supabase link --project-ref gunkacvftnvwxcppqvxr
+supabase link --project-ref iximbhwsjmppsdiwdixl
 ```
 
-You will be prompted for the database password for project `gunkacvftnvwxcppqvxr`.
+You will be prompted for the database password for project `iximbhwsjmppsdiwdixl`.
 Enter it when prompted.
 
 **Expected output (success):**
@@ -237,7 +238,7 @@ All four rows must show matching LOCAL and REMOTE timestamps.
 ### Step 7 — Post-Application Validation SQL
 
 Run each query in the Supabase SQL editor or via `supabase db execute` against
-project `gunkacvftnvwxcppqvxr`. All queries are read-only.
+project `iximbhwsjmppsdiwdixl`. All queries are read-only.
 
 #### V1 — Table count (expect 49 tables from M0003, plus prior tables)
 ```sql
@@ -435,7 +436,7 @@ If `supabase db push` exits 0 but a validation query returns unexpected results:
 
 If `supabase link` fails (auth error, project not found):
 - Verify you are logged in to the correct Supabase account.
-- Verify project ref `gunkacvftnvwxcppqvxr` still exists (disposable projects
+- Verify project ref `iximbhwsjmppsdiwdixl` still exists (disposable projects
   may be paused or deleted after inactivity).
 - If the project has been paused: restore via Dashboard or `supabase projects restore`.
 
@@ -445,7 +446,7 @@ If `supabase link` fails (auth error, project not found):
 
 ### Before M0003 Is Applied
 
-The disposable project `gunkacvftnvwxcppqvxr` is already in a clean pre-M0003 state.
+The disposable project `iximbhwsjmppsdiwdixl` is already in a clean pre-M0003 state.
 No rollback is needed — simply fix the defect and re-run from Step 4.
 
 ### If M0003 Applies Successfully but Validation Reveals a Defect
@@ -470,7 +471,7 @@ completes successfully.
 After `supabase migration list` confirms all 4 migrations applied (Step 6), return
 to the active session and confirm. The session will then proceed with:
 
-1. Full V1–V12 SQL validation (using MCP `execute_sql` on `gunkacvftnvwxcppqvxr`)
+1. Full V1–V12 SQL validation (using MCP `execute_sql` on `iximbhwsjmppsdiwdixl`)
 2. Trigger test matrix (22 triggers — 6 valid + 13 rejected numeric unit scenarios)
 3. Deferred constraint integrity (3 deferred FKs + 1 constraint trigger)
 4. Partial unique-index tests (`uq_lifebook_entities_active`)
@@ -480,7 +481,7 @@ to the active session and confirm. The session will then proceed with:
 8. Transactional rollback test
 9. Full rebuild reproducibility check
 10. `LIVE_EXECUTION_VALIDATION_REPORT.md`
-11. Teardown (pause `gunkacvftnvwxcppqvxr`, confirm no credentials committed)
+11. Teardown (pause `iximbhwsjmppsdiwdixl`, confirm no credentials committed)
 
 ---
 
