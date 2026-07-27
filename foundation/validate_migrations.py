@@ -1457,6 +1457,68 @@ def main():
         eo006_detail
     )
 
+    # EO-007: RLS policy execution-order validation — no CREATE POLICY statement may
+    # reference a column added by the Addendum ALTER TABLE before that ALTER TABLE executes.
+    # Addendum columns on claims: review_status, submission_origin, ai_generated,
+    #                              producing_agent_code, context_manifest_id
+    # Addendum columns on narratives: review_status
+    # The Addendum ALTER TABLE block starts with the marker:
+    #   "-- Addendum: Missing columns on claims"
+    # Any CREATE POLICY before that marker that references these column names in a
+    # non-comment SQL expression fails with SQLSTATE 42703 at execution time.
+    #
+    # Detection strategy: parse CREATE POLICY blocks from the raw SQL (stripping
+    # dollar-quoted blocks and line comments), find their char offsets, and check
+    # whether they reference any Addendum column before the Addendum marker.
+    addendum_marker = '-- Addendum: Missing columns on claims'
+    addendum_pos = m0003_raw.find(addendum_marker)
+    addendum_cols = ['review_status', 'submission_origin', 'ai_generated',
+                     'producing_agent_code', 'context_manifest_id']
+
+    eo007_ok = True
+    eo007_violations = []
+
+    if addendum_pos == -1:
+        eo007_ok = False
+        eo007_violations.append("Addendum marker not found in M0003")
+    else:
+        import re as _re
+        # Work entirely in m0003_raw (original char positions) so addendum_pos is valid.
+        # Strip dollar-quoted blocks so PL/pgSQL bodies don't produce false positives;
+        # strip_dollar_quoted_blocks preserves string length (replaces with spaces).
+        stripped_raw = strip_dollar_quoted_blocks(m0003_raw)
+
+        # Find all CREATE POLICY statements in the stripped raw text.
+        # We use the raw positions so they're directly comparable to addendum_pos.
+        pol_pattern = _re.compile(r'CREATE\s+POLICY\s+(\w+)', _re.IGNORECASE)
+        for m in pol_pattern.finditer(stripped_raw):
+            pol_start = m.start()
+            if pol_start >= addendum_pos:
+                continue  # policy is after Addendum — fine
+            pol_name = m.group(1)
+            # Find the end of this policy statement (next semicolon)
+            semi = stripped_raw.find(';', pol_start)
+            if semi == -1:
+                continue
+            # Extract just this policy block and strip its line comments before
+            # checking for column names (so comment-only mentions don't fire).
+            pol_body_raw = stripped_raw[pol_start:semi + 1]
+            pol_body = _re.sub(r'--[^\n]*', ' ', pol_body_raw)
+            for col in addendum_cols:
+                if _re.search(r'\b' + col + r'\b', pol_body):
+                    eo007_violations.append(
+                        f"Policy '{pol_name}' at char {pol_start} references "
+                        f"Addendum column '{col}' before Addendum at char {addendum_pos}"
+                    )
+                    eo007_ok = False
+
+    check(
+        "EO-007: No CREATE POLICY before the Addendum references an Addendum-added column "
+        "(review_status / submission_origin / ai_generated on claims or narratives)",
+        eo007_ok,
+        "; ".join(eo007_violations) if eo007_violations else "all policies reference only columns available at execution point"
+    )
+
     # EO-003: No CREATE INDEX in M0003 Phase 3 section references review_status
     # (the column that previously caused SQLSTATE 42703 at statement 72).
     # Detect by finding the Phase 3 block boundary and checking for review_status.

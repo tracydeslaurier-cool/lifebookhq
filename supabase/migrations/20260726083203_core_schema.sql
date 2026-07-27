@@ -2500,11 +2500,11 @@ CREATE POLICY pol_source_derivatives_select_lifebook
 -- Group D — INSERT and AI Restrictions (policies 30–36, 41, 47, 51, 69, 71)
 -- ============================================================
 
--- Policy 30: Agent cannot set review_status = 'policy_approved'
-CREATE POLICY pol_claims_ai_promotion_denied
-    ON claims FOR UPDATE
-    USING (fn_lb_membership_role(lifebook_id) != 'none')
-    WITH CHECK (NOT (fn_user_is_agent() AND review_status = 'policy_approved'));
+-- Policy 30: pol_claims_ai_promotion_denied — DEFERRED to Addendum section below.
+-- claims.review_status is added by ALTER TABLE in the Addendum; the CREATE POLICY
+-- statement cannot reference it before that ALTER TABLE executes.
+-- PostgreSQL raises SQLSTATE 42703 "column review_status does not exist" if a policy
+-- references a column that does not yet exist on the table at policy-creation time.
 
 -- Policy 31: Agent cannot change dispute_status
 CREATE POLICY pol_claims_ai_dispute_denied
@@ -2512,11 +2512,9 @@ CREATE POLICY pol_claims_ai_dispute_denied
     USING (fn_lb_membership_role(lifebook_id) != 'none')
     WITH CHECK (NOT (fn_user_is_agent() AND is_contested != (SELECT is_contested FROM claims c WHERE c.id = id)));
 
--- Policy 32: Agent cannot set review_status = 'policy_approved' on narratives
-CREATE POLICY pol_narratives_ai_promotion_denied
-    ON narratives FOR UPDATE
-    USING (fn_lb_membership_role(lifebook_id) != 'none')
-    WITH CHECK (NOT (fn_user_is_agent() AND review_status = 'policy_approved'));
+-- Policy 32: pol_narratives_ai_promotion_denied — DEFERRED to Addendum section below.
+-- narratives.review_status is added by ALTER TABLE in the Addendum; same ordering
+-- constraint as Policy 30 above.
 
 -- Policy 33: AI cannot create Events
 CREATE POLICY pol_events_insert_agent_denied
@@ -2866,6 +2864,28 @@ ALTER TABLE narratives
 -- Source: VOCABULARY_RLS_MATRIX.md §9 (same authority as Phase 3 Addendum)
 CREATE INDEX idx_claims_lifebook_review_access
     ON claims (lifebook_id, review_status, access_classification);
+
+-- ---------------------------------------------------------------------------
+-- Addendum — Deferred RLS policies (policies 30, 32)
+-- These policies reference columns added by the ALTER TABLE statements above.
+-- CREATE POLICY validates column existence at execution time (SQLSTATE 42703 if
+-- the column does not yet exist). They must appear after the ALTER TABLE that
+-- creates the referenced column.
+-- ---------------------------------------------------------------------------
+
+-- Policy 30 (deferred): Agent cannot set review_status = 'policy_approved'
+-- Depends on: ALTER TABLE claims ADD COLUMN review_status (Addendum above)
+CREATE POLICY pol_claims_ai_promotion_denied
+    ON claims FOR UPDATE
+    USING (fn_lb_membership_role(lifebook_id) != 'none')
+    WITH CHECK (NOT (fn_user_is_agent() AND review_status = 'policy_approved'));
+
+-- Policy 32 (deferred): Agent cannot set review_status = 'policy_approved' on narratives
+-- Depends on: ALTER TABLE narratives ADD COLUMN review_status (Addendum above)
+CREATE POLICY pol_narratives_ai_promotion_denied
+    ON narratives FOR UPDATE
+    USING (fn_lb_membership_role(lifebook_id) != 'none')
+    WITH CHECK (NOT (fn_user_is_agent() AND review_status = 'policy_approved'));
 
 -- ---------------------------------------------------------------------------
 -- COMMIT — end of transaction block
