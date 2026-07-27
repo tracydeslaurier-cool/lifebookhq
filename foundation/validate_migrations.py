@@ -1429,6 +1429,34 @@ def main():
         f"GRANT governance_functions TO postgres present={grant_to_postgres_present}"
     )
 
+    # EO-006: Both ownership prerequisites for governance_functions are present before
+    # the first ALTER FUNCTION ... OWNER TO governance_functions statement.
+    # Required:
+    #   (a) GRANT governance_functions TO postgres (role membership — SET ROLE access)
+    #   (b) GRANT USAGE, CREATE ON SCHEMA public TO governance_functions (schema CREATE privilege)
+    # Without (a): SQLSTATE 42501 "must be able to SET ROLE governance_functions"
+    # Without (b): SQLSTATE 42501 "permission denied for schema public"
+    schema_grant_present = 'GRANT USAGE, CREATE ON SCHEMA public TO governance_functions' in m0003_raw
+    schema_grant_pos = m0003_raw.find('GRANT USAGE, CREATE ON SCHEMA public TO governance_functions')
+    first_owner_to_pos_eo6 = m0003_raw.find('OWNER TO governance_functions')
+    eo006_ok = (
+        grant_to_postgres_present and
+        schema_grant_present and
+        grant_role_pos < first_owner_to_pos_eo6 and
+        schema_grant_pos < first_owner_to_pos_eo6
+    )
+    eo006_detail = (
+        f"role grant present={grant_to_postgres_present} at char {grant_role_pos}, "
+        f"schema grant present={schema_grant_present} at char {schema_grant_pos}, "
+        f"first OWNER TO at char {first_owner_to_pos_eo6}"
+    )
+    check(
+        "EO-006: Both governance_functions ownership prerequisites precede first OWNER TO "
+        "governance_functions (role membership + schema CREATE privilege)",
+        eo006_ok,
+        eo006_detail
+    )
+
     # EO-003: No CREATE INDEX in M0003 Phase 3 section references review_status
     # (the column that previously caused SQLSTATE 42703 at statement 72).
     # Detect by finding the Phase 3 block boundary and checking for review_status.

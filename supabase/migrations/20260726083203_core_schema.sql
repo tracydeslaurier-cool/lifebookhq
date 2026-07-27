@@ -8,13 +8,17 @@
 --   20260726083202_application_roles          (agent_service, system_service, admin, governance_functions)
 -- Creates: 49 tables, 4 deferred FKs (ALTER TABLE), 14 explicit indexes,
 --          31 functions (9 helpers + 22 trigger functions), 22 triggers,
---          RLS on 25 tables, 71 RLS policies, 64 GRANT statements,
+--          RLS on 25 tables, 71 RLS policies, 65 GRANT statements,
 --          reference catalogue seed data (134 records)
 -- Note: governance_functions role is created by 20260726083202_application_roles.
---       This migration issues GRANT governance_functions TO postgres immediately
---       after BEGIN to allow ALTER FUNCTION ... OWNER TO governance_functions (SQLSTATE
---       42501 otherwise: Supabase migrations execute under the postgres role, which is
---       not automatically a member of governance_functions after M0002b creates it).
+--       Two bootstrap GRANTs are issued immediately after BEGIN:
+--         1. GRANT governance_functions TO postgres — allows SET ROLE governance_functions
+--            during ownership transfer (SQLSTATE 42501 without it; postgres is not
+--            automatically a member of governance_functions after M0002b creates it).
+--         2. GRANT USAGE, CREATE ON SCHEMA public TO governance_functions — permits
+--            PostgreSQL to assign governance_functions as owner of public-schema objects
+--            (SQLSTATE 42501 "permission denied for schema public" without it).
+--       Both GRANTs are permanent. GRANT ... TO current_user causes EOF on Supabase CLI.
 -- Author: Migration — LifeBook HQ Core Schema v0.3
 -- =============================================================================
 
@@ -28,16 +32,36 @@ BEGIN;
 --
 -- governance_functions is NOLOGIN (correct — no application should log in as it).
 -- Supabase migrations execute under the postgres role. postgres is not automatically
--- a member of governance_functions after M0002b creates it. This GRANT provides the
--- required SET ROLE access for ALTER FUNCTION ... OWNER TO governance_functions below.
--- Confirmed: GRANT governance_functions TO postgres executes successfully on Supabase.
--- GRANT governance_functions TO current_user causes unexpected EOF / connection termination.
+-- a member of governance_functions after M0002b creates it.
+--
+-- Two prerequisites must be satisfied before the first ALTER FUNCTION ... OWNER TO
+-- governance_functions statement can succeed:
+--
+--   1. ROLE MEMBERSHIP: postgres must be a member of governance_functions so it can
+--      SET ROLE governance_functions during ownership transfer. Without this,
+--      PostgreSQL raises SQLSTATE 42501 "must be able to SET ROLE governance_functions".
+--      GRANT governance_functions TO current_user causes unexpected EOF on Supabase CLI
+--      — postgres must be named explicitly.
+--
+--   2. SCHEMA CREATE PRIVILEGE: governance_functions must hold CREATE on the public
+--      schema so PostgreSQL can legally assign it as the owner of objects that reside
+--      there. Without this, PostgreSQL raises SQLSTATE 42501
+--      "permission denied for schema public" at the ALTER FUNCTION ... OWNER TO
+--      statement even when role membership is satisfied.
+--      Evidence: governance_functions USAGE=true, CREATE=false before this grant.
+--
+-- Both GRANTs are permanent (no REVOKE): future migrations may also ALTER functions
+-- owned by governance_functions, and the schema privilege must persist.
 --
 -- GRANT role TO role produces GrantRoleStmt (not GrantStmt) — it does not
--- change the "64 GRANT statements" count in the header; it is separate.
--- This GRANT is permanent (no REVOKE): future migrations may also need to
--- ALTER functions owned by governance_functions.
+-- change the "65 GRANT statements" count in the header; it is a separate AST type.
+-- GRANT USAGE, CREATE ON SCHEMA public TO governance_functions is a GrantStmt and
+-- is included in the 65 GRANT statements total in the header.
 GRANT governance_functions TO postgres;
+
+-- governance_functions must hold CREATE on public so PostgreSQL allows object
+-- ownership transfer to this role. USAGE alone is insufficient.
+GRANT USAGE, CREATE ON SCHEMA public TO governance_functions;
 
 -- =============================================================================
 -- PHASE 1 — TABLES (Batches 1–14)
@@ -1200,9 +1224,12 @@ CREATE INDEX idx_contest_records_contested_record     ON contest_records (contes
 
 -- governance_functions role is created by 20260726083202_application_roles.
 -- This migration transfers function ownership via ALTER FUNCTION ... OWNER TO governance_functions.
--- GRANT governance_functions TO postgres (issued after BEGIN above) provides SET ROLE access.
+-- Two bootstrap GRANTs issued after BEGIN above are required before ownership transfer:
+--   1. GRANT governance_functions TO postgres — provides SET ROLE access (SQLSTATE 42501 without it).
+--   2. GRANT USAGE, CREATE ON SCHEMA public TO governance_functions — permits ownership transfer
+--      (PostgreSQL raises "permission denied for schema public" without CREATE privilege).
 -- Supabase migrations execute under the postgres role; current_user causes connection termination.
--- If the role does not exist or the GRANT above was skipped, OWNER TO will fail — correct behaviour.
+-- If either GRANT was skipped, OWNER TO will fail — correct behaviour.
 
 -- ---------------------------------------------------------------------------
 -- 4.1 fn_user_is_agent — NOT SECURITY DEFINER

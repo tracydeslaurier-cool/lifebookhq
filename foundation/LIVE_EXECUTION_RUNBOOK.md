@@ -13,7 +13,7 @@
 ## Why CLI Is Required
 
 The Supabase MCP `apply_migration` tool requires the full SQL as a single string parameter.
-`20260726083203_core_schema.sql` is 182,054 bytes (~45K tokens). This exceeds the model output
+`20260726083203_core_schema.sql` is 183,741 bytes (~46K tokens). This exceeds the model output
 token limit for a single tool invocation. This is a tooling transport limitation only — it is not
 a schema defect. The migration file is correct and fully validated.
 
@@ -31,11 +31,11 @@ still writing the correct migration-history record into `supabase_migrations.sch
 | Field        | Value                                                                    |
 |--------------|--------------------------------------------------------------------------|
 | File         | `supabase/migrations/20260726083203_core_schema.sql`                     |
-| Byte count   | 182,054                                                                  |
-| Line count   | 2,906                                                                    |
-| SHA-256      | `f7b53f2af187c6fffc2dd228c7cbb4d9ec860e8e7f197760d4afb57918b31c60`       |
-| Git commit   | `b5de3c0`                               |
-| Commit msg   | `fix(M0003): replace GRANT governance_functions TO current_user with postgres (DEF-0003)` |
+| Byte count   | 183,741                                                                  |
+| Line count   | 2,933                                                                    |
+| SHA-256      | `af142435fa060c6e58c6917ef920eb281b5c980c4636a1d36a3d8fcf78130a4a`       |
+| Git commit   | pending                                 |
+| Commit msg   | pending                                                                   |
 | Working tree | Clean (no uncommitted changes to this file)                              |
 
 **Do not modify the migration file.** If a runtime defect is found, a new DP session is required
@@ -183,7 +183,7 @@ sha256sum supabase/migrations/20260726083203_core_schema.sql
 
 **Expected:**
 ```
-f7b53f2af187c6fffc2dd228c7cbb4d9ec860e8e7f197760d4afb57918b31c60  supabase/migrations/20260726083203_core_schema.sql
+af142435fa060c6e58c6917ef920eb281b5c980c4636a1d36a3d8fcf78130a4a  supabase/migrations/20260726083203_core_schema.sql
 ```
 
 If the SHA-256 does not match — **STOP. Do not apply. Report to DP.**
@@ -394,15 +394,31 @@ SELECT
 -- display_contexts: 9
 ```
 
-#### V13 — governance_functions role membership (DEF-0003 verification)
+#### V13 — governance_functions role membership (DEF-0003 part 1 verification)
 ```sql
 SELECT r.rolname AS role, mr.rolname AS member
 FROM pg_auth_members m
 JOIN pg_roles r  ON r.oid = m.roleid
 JOIN pg_roles mr ON mr.oid = m.member
 WHERE r.rolname = 'governance_functions';
--- Expected: 1 row — role='governance_functions', member='postgres' (or project owner role)
--- If 0 rows: GRANT governance_functions TO current_user in M0003 did not execute — STOP.
+-- Expected: 1 row — role='governance_functions', member='postgres'
+-- If 0 rows: GRANT governance_functions TO postgres in M0003 did not execute — STOP.
+```
+
+#### V14 — governance_functions schema CREATE privilege (DEF-0003 part 2 verification)
+```sql
+SELECT grantee, privilege_type
+FROM information_schema.role_usage_grants
+WHERE object_schema = 'public' AND grantee = 'governance_functions'
+UNION ALL
+SELECT grantee, privilege_type
+FROM information_schema.role_schema_grants
+WHERE object_schema = 'public' AND grantee = 'governance_functions';
+-- Alternatively (more direct):
+SELECT has_schema_privilege('governance_functions', 'public', 'CREATE') AS has_create,
+       has_schema_privilege('governance_functions', 'public', 'USAGE') AS has_usage;
+-- Expected: has_create=true, has_usage=true
+-- If has_create=false: GRANT USAGE, CREATE ON SCHEMA public TO governance_functions did not execute — STOP.
 ```
 
 ---
@@ -440,7 +456,7 @@ NOT contain a `20260726083203` entry.
 
 If `supabase db push` exits 0 but a validation query returns unexpected results:
 1. Stop all further execution.
-2. Run the full V1–V13 suite to determine scope of divergence.
+2. Run the full V1–V14 suite to determine scope of divergence.
 3. Report all divergences to DP before any remediation.
 
 ### Link Step Fails
@@ -482,7 +498,7 @@ completes successfully.
 After `supabase migration list` confirms all 4 migrations applied (Step 6), return
 to the active session and confirm. The session will then proceed with:
 
-1. Full V1–V13 SQL validation (using MCP `execute_sql` on `iximbhwsjmppsdiwdixl`)
+1. Full V1–V14 SQL validation (using MCP `execute_sql` on `iximbhwsjmppsdiwdixl`)
 2. Trigger test matrix (22 triggers — 6 valid + 13 rejected numeric unit scenarios)
 3. Deferred constraint integrity (3 deferred FKs + 1 constraint trigger)
 4. Partial unique-index tests (`uq_lifebook_entities_active`)
@@ -500,12 +516,11 @@ to the active session and confirm. The session will then proceed with:
 
 > M0003 (`20260726083203_core_schema.sql`) was applied through the official Supabase CLI
 > migration mechanism (`supabase db push`) because the MCP `apply_migration` interface
-> cannot transport approximately 180 KB of SQL in a single tool invocation. This is a
+> cannot transport approximately 184 KB of SQL in a single tool invocation. This is a
 > tooling transport limitation only. It is not a schema defect and does not affect the
-> validity of the migration. The migration file is frozen at commit
-> `5dac8d3`, SHA-256
-> `f7b53f2af187c6fffc2dd228c7cbb4d9ec860e8e7f197760d4afb57918b31c60`, 182,054 bytes,
-> 2,906 lines. No further schema modifications are authorised until CLI execution either
+> validity of the migration. The migration file is frozen at SHA-256
+> `af142435fa060c6e58c6917ef920eb281b5c980c4636a1d36a3d8fcf78130a4a`, 183,741 bytes,
+> 2,933 lines. No further schema modifications are authorised until CLI execution either
 > succeeds completely or exposes a genuine runtime SQL defect.
 
 ---
