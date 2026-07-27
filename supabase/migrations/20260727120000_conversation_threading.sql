@@ -7,8 +7,14 @@
 --   20260726083201_predicate_governance_types (M0002 — predicate types, display_contexts)
 --   20260726083202_application_roles          (M0002b — governance_functions, agent_service)
 --   20260726083203_core_schema                (M0003 — 89 tables, 9 functions, 110 policies)
--- Creates: 4 new tables, 1 view, 4 new functions, 1 new trigger, 5 new indexes,
---          15 new RLS policies, ~25 new columns on 3 existing tables
+-- Creates: 4 new tables, 1 view, 5 new functions, 1 new trigger, 5 new indexes,
+--          17 new RLS policies, ~25 new columns on 3 existing tables
+--          (17 = 16 original + 1 D-003 corrective: pol_obligations_select_governance_functions)
+-- Remediation: D-002 (governance_functions privilege chain — auth.uid dependency,
+--   missing BYPASSRLS, missing SELECT grants), D-003 (circular RLS between
+--   conversation_threads and thread_obligations — denormalized lifebook_id +
+--   fn_thread_has_active_invitation), D-004 (contributor_thread_view missing
+--   security_invoker = true) — all applied 2026-07-27 post-validation.
 -- Authorisation: DP review complete 2026-07-27. All five policy decisions approved.
 --   Decision 1: storage_provider_code TEXT REFERENCES storage_providers(code) (code is PK)
 --   Decision 2: 4-state upload lifecycle: pending_upload→received→validated→failed
@@ -70,6 +76,16 @@ COMMENT ON COLUMN conversation_threads.anchor_narrative_id IS
 CREATE TABLE thread_obligations (
     id                  UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
     thread_id           UUID        NOT NULL REFERENCES conversation_threads(id),
+    -- D-003 corrective: denormalized lifebook_id for direct RLS lookups.
+    -- Without this column, thread_obligations RLS policies must subquery
+    -- conversation_threads to obtain lifebook_id. That subquery triggers RLS
+    -- on conversation_threads, which itself queries thread_obligations —
+    -- producing infinite recursion (PostgreSQL error 42P17).
+    -- The application MUST supply lifebook_id on INSERT, consistent with
+    -- the thread's own lifebook_id. A FK check to lifebooks(id) enforces
+    -- referential integrity; no trigger is required for the denormalization
+    -- because INSERT always has both thread_id and lifebook_id in scope.
+    lifebook_id         UUID        NOT NULL REFERENCES lifebooks(id),
     obligation_type     TEXT        NOT NULL
                             CHECK (obligation_type IN (
                                 'artifact_upload',
@@ -242,6 +258,243 @@ COMMENT ON COLUMN events.review_status IS
     'Decision 5 (M0004_DP_REVIEW.md): steward session initiation ≠ steward record authorship.';
 
 -- =============================================================================
+-- PHASE 5.5 — D-002 CORRECTIVE: Rewrite M0003 SECURITY DEFINER functions
+-- Root cause: governance_functions SECURITY DEFINER context cannot call auth.uid()
+-- because the auth schema is owned by supabase_admin. postgres holds USAGE on auth
+-- only via authenticated role membership, without GRANT OPTION — it cannot extend
+-- that privilege to governance_functions. auth.uid() is a thin GUC-reader; replacing
+-- calls to it with direct GUC reads eliminates the schema dependency entirely.
+-- Affected: fn_lb_membership_role, fn_is_subject_of, fn_has_active_authority,
+--   fn_has_source_access_grant, fn_has_contest_standing (all originally in M0003).
+-- These CREATE OR REPLACE statements are additive corrections in M0004.
+-- M0003 is not modified.
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION fn_lb_membership_role(p_lifebook_id UUID)
+RETURNS TEXT
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = 'public', 'pg_temp'
+AS $$
+DECLARE
+    v_role TEXT;
+    v_uid  UUID;
+BEGIN
+    IF p_lifebook_id IS NULL THEN
+        RETURN 'none';
+    END IF;
+
+    -- D-002 corrective: direct GUC read replaces auth.uid().
+    -- auth.uid() = COALESCE(NULLIF(current_setting('request.jwt.claim.sub',...), ''),
+    --   NULLIF(current_setting('request.jwt.claims',...), '')::jsonb ->> 'sub')::uuid
+    v_uid := COALESCE(
+        NULLIF(current_setting('request.jwt.claim.sub', true), ''),
+        NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+    )::uuid;
+
+    SELECT membership_role
+      INTO v_role
+      FROM lifebook_memberships
+     WHERE lifebook_id = p_lifebook_id
+       AND user_id = v_uid
+     LIMIT 1;
+
+    RETURN COALESCE(v_role, 'none');
+END;
+$$;
+ALTER FUNCTION fn_lb_membership_role(UUID) OWNER TO governance_functions;
+
+CREATE OR REPLACE FUNCTION fn_is_subject_of(p_entity_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = 'public', 'pg_temp'
+AS $$
+DECLARE
+    v_uid UUID;
+BEGIN
+    IF p_entity_id IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    v_uid := COALESCE(
+        NULLIF(current_setting('request.jwt.claim.sub', true), ''),
+        NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+    )::uuid;
+
+    RETURN EXISTS (
+        SELECT 1
+          FROM user_person_links
+         WHERE user_id = v_uid
+           AND person_entity_id = p_entity_id
+           AND verification_status = 'verified'
+    );
+END;
+$$;
+ALTER FUNCTION fn_is_subject_of(UUID) OWNER TO governance_functions;
+
+CREATE OR REPLACE FUNCTION fn_has_active_authority(
+    p_role_code TEXT,
+    p_entity_id UUID DEFAULT NULL
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = 'public', 'pg_temp'
+AS $$
+DECLARE
+    v_uid UUID;
+BEGIN
+    v_uid := COALESCE(
+        NULLIF(current_setting('request.jwt.claim.sub', true), ''),
+        NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+    )::uuid;
+
+    RETURN EXISTS (
+        SELECT 1
+          FROM authority_assignments
+         WHERE authority_holder_id = v_uid
+           AND authority_role = p_role_code
+           AND (effective_until IS NULL OR effective_until > current_date)
+           AND (p_entity_id IS NULL OR entity_id = p_entity_id)
+    );
+END;
+$$;
+ALTER FUNCTION fn_has_active_authority(TEXT, UUID) OWNER TO governance_functions;
+
+CREATE OR REPLACE FUNCTION fn_has_source_access_grant(p_source_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = 'public', 'pg_temp'
+AS $$
+DECLARE
+    v_uid UUID;
+BEGIN
+    IF p_source_id IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    v_uid := COALESCE(
+        NULLIF(current_setting('request.jwt.claim.sub', true), ''),
+        NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+    )::uuid;
+
+    RETURN EXISTS (
+        SELECT 1
+          FROM lifebook_source_access lsa
+          JOIN lifebook_memberships lm
+            ON lm.lifebook_id = lsa.lifebook_id
+           AND lm.user_id = v_uid
+         WHERE lsa.source_id = p_source_id
+    );
+END;
+$$;
+ALTER FUNCTION fn_has_source_access_grant(UUID) OWNER TO governance_functions;
+
+CREATE OR REPLACE FUNCTION fn_has_contest_standing(
+    p_table          TEXT,
+    p_record_id      UUID,
+    p_standing_class TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = 'public', 'pg_temp'
+AS $$
+DECLARE
+    v_whitelisted_tables TEXT[] := ARRAY[
+        'claims', 'relationships', 'narratives', 'sources', 'artifacts',
+        'events', 'person_names', 'person_pronouns', 'person_gender_descriptors'
+    ];
+    v_entity_id   UUID;
+    v_lifebook_id UUID;
+    v_sql         TEXT;
+    v_uid         UUID;
+    v_created_by  UUID;
+BEGIN
+    -- Validate table name against whitelist — RAISE EXCEPTION on unrecognized table
+    IF NOT (p_table = ANY(v_whitelisted_tables)) THEN
+        RAISE EXCEPTION 'fn_has_contest_standing: unrecognized contested_record_table: %', p_table;
+    END IF;
+
+    IF p_record_id IS NULL OR p_standing_class IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    v_uid := COALESCE(
+        NULLIF(current_setting('request.jwt.claim.sub', true), ''),
+        NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+    )::uuid;
+
+    -- Check standing class: steward of the LifeBook
+    IF p_standing_class = 'steward' THEN
+        v_sql := format('SELECT lifebook_id FROM %I WHERE id = $1', p_table);
+        EXECUTE v_sql INTO v_lifebook_id USING p_record_id;
+        RETURN fn_lb_membership_role(v_lifebook_id) = 'steward';
+
+    -- Check standing class: subject (person whose record this concerns)
+    ELSIF p_standing_class = 'subject' THEN
+        v_sql := format('SELECT person_id FROM %I WHERE id = $1', p_table);
+        EXECUTE v_sql INTO v_entity_id USING p_record_id;
+        IF v_entity_id IS NULL THEN
+            v_sql := format('SELECT entity_id FROM %I WHERE id = $1', p_table);
+            EXECUTE v_sql INTO v_entity_id USING p_record_id;
+        END IF;
+        RETURN fn_is_subject_of(v_entity_id);
+
+    -- Check standing class: asserting_party (user who created the record)
+    ELSIF p_standing_class = 'asserting_party' THEN
+        v_sql := format('SELECT created_by_id FROM %I WHERE id = $1', p_table);
+        EXECUTE v_sql INTO v_created_by USING p_record_id;
+        RETURN v_created_by = v_uid;
+
+    -- Check standing class: affected_party (involved entities include current user's person)
+    ELSIF p_standing_class = 'affected_party' THEN
+        RETURN EXISTS (
+            SELECT 1
+              FROM user_person_links upl
+             WHERE upl.user_id = v_uid
+               AND upl.verification_status = 'verified'
+               AND EXISTS (
+                   SELECT 1
+                     FROM contest_records cr
+                    WHERE cr.contested_record_table = p_table
+                      AND cr.contested_record_id = p_record_id
+                      AND upl.person_entity_id = ANY(cr.person_ids_involved)
+               )
+        );
+
+    -- Check standing class: cultural_authority
+    ELSIF p_standing_class = 'cultural_authority' THEN
+        RETURN fn_has_active_authority('cultural_authority', NULL);
+
+    -- Check standing class: authority_holder (holds active AuthorityAssignment for entity)
+    ELSIF p_standing_class = 'authority_holder' THEN
+        v_sql := format('SELECT entity_id FROM %I WHERE id = $1', p_table);
+        EXECUTE v_sql INTO v_entity_id USING p_record_id;
+        RETURN fn_has_active_authority('steward', v_entity_id)
+            OR fn_has_active_authority('cultural_authority', v_entity_id);
+
+    -- Check standing class: lifebook_member (any member of the LifeBook)
+    ELSIF p_standing_class = 'lifebook_member' THEN
+        v_sql := format('SELECT lifebook_id FROM %I WHERE id = $1', p_table);
+        EXECUTE v_sql INTO v_lifebook_id USING p_record_id;
+        RETURN fn_lb_membership_role(v_lifebook_id) != 'none';
+
+    ELSE
+        RAISE EXCEPTION 'fn_has_contest_standing: unrecognized standing_class: %', p_standing_class;
+    END IF;
+END;
+$$;
+ALTER FUNCTION fn_has_contest_standing(TEXT, UUID, TEXT) OWNER TO governance_functions;
+
+-- =============================================================================
 -- PHASE 6 — NEW FUNCTIONS
 -- All helper functions: SECURITY DEFINER, search_path pinned.
 -- All owned by governance_functions.
@@ -411,6 +664,48 @@ $$;
 ALTER FUNCTION fn_obligations_due(UUID) OWNER TO governance_functions;
 
 -- =============================================================================
+-- PHASE 6.5 — D-003 NEW FUNCTION: fn_thread_has_active_invitation
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- fn_thread_has_active_invitation — SECURITY DEFINER
+-- D-003 corrective: breaks circular RLS dependency between conversation_threads
+-- and thread_obligations.
+--
+-- Problem: pol_threads_select_contributor previously used an EXISTS subquery on
+-- thread_obligations. When the authenticated role queries thread_obligations,
+-- thread_obligations RLS fires — and pol_obligations_select_steward originally
+-- subqueried conversation_threads, completing the cycle. PostgreSQL raises
+-- "infinite recursion detected in policy" (error 42P17).
+--
+-- Solution: this SECURITY DEFINER function runs as governance_functions, which
+-- has BYPASSRLS (set in Phase 11) and SELECT on thread_obligations (granted in
+-- Phase 11). It checks obligation state without triggering authenticated-role RLS.
+-- pol_threads_select_contributor now calls fn_thread_has_active_invitation(id)
+-- instead of the inline EXISTS subquery.
+--
+-- pol_obligations_select_governance_functions (Phase 10.2) was also added as a
+-- defence-in-depth backstop: ensures this function's queries succeed even if
+-- BYPASSRLS were ever removed from governance_functions.
+-- ---------------------------------------------------------------------------
+
+CREATE FUNCTION fn_thread_has_active_invitation(p_thread_id UUID)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = 'public', 'pg_temp'
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM thread_obligations
+         WHERE thread_id = p_thread_id
+           AND obligation_type = 'invitation'
+           AND obligation_state IN ('pending', 'offered')
+    )
+$$;
+ALTER FUNCTION fn_thread_has_active_invitation(UUID) OWNER TO governance_functions;
+
+-- =============================================================================
 -- PHASE 7 — TRIGGER: Event auto-promotion
 -- =============================================================================
 
@@ -427,24 +722,38 @@ CREATE TRIGGER trg_event_review_status_auto_promote
 -- The underlying RLS policy (Phase 9) controls row access.
 -- =============================================================================
 
-CREATE VIEW contributor_thread_view AS
+-- Decision 3 conformance note:
+-- state is deliberately excluded. pending_materials signals outstanding invitation
+-- obligations and reveals stewardship activity. No defined contributor-facing use case
+-- requires thread state. Contributors receive topic, summary, and subject entity only.
+-- DP conformance review, 2026-07-27.
+--
+-- D-004 corrective: security_invoker = true ensures RLS is evaluated as the querying
+-- user, not as the view owner (postgres, rolbypassrls = true). Without this option,
+-- the view owner's BYPASSRLS bypasses all RLS on conversation_threads — every row is
+-- visible regardless of the contributor policy. Validated: C1 test (contributor sees
+-- Thread A only) passed after adding this option.
+CREATE VIEW contributor_thread_view
+WITH (security_invoker = true) AS
     SELECT
         ct.id,
         ct.lifebook_id,
         ct.topic_label,
         ct.thread_summary,
-        ct.anchor_entity_id,
-        ct.state,
-        ct.last_activity_at
+        ct.anchor_entity_id
     FROM conversation_threads ct;
 
 COMMENT ON VIEW contributor_thread_view IS
-    'Column-scoped projection of conversation_threads for contributor access. '
-    'Excludes governance columns (context_manifest_id, created_by_id, dormant_since). '
-    'Row access is controlled by pol_threads_select_contributor on the base table. '
+    'Curated contextual projection of conversation_threads for contributor access. '
+    'security_invoker = true: RLS evaluated as the querying user (not the view owner). '
+    'Without this, view owner postgres (rolbypassrls = true) bypasses all row security. '
+    'Columns: id, lifebook_id, topic_label, thread_summary, anchor_entity_id. '
+    'state excluded: pending_materials reveals steward obligation activity not required '
+    'by any contributor-facing use case. '
+    'Row access governed by pol_threads_select_contributor on conversation_threads. '
     'thread_summary must never contain obligation metadata, raw conversation excerpts, '
     'or references to access-classified claims the contributor may not be permitted to see. '
-    'Decision 3 — M0004_DP_REVIEW.md.';
+    'Decision 3 + D-004 corrective — M0004_DP_REVIEW.md, 2026-07-27.';
 
 -- =============================================================================
 -- PHASE 9 — INDEXES
@@ -515,17 +824,16 @@ CREATE POLICY pol_threads_select_agent
 -- Policy T-6: Contributor may select threads where they have an active invitation
 -- Decision 3: Contributor sees thread summary via contributor_thread_view;
 -- this RLS policy controls which rows that view exposes to contributors.
+-- D-003 corrective: original policy used an inline EXISTS subquery on
+-- thread_obligations, causing circular RLS (pol_obligations_select_steward
+-- subqueried conversation_threads → infinite recursion, PostgreSQL error 42P17).
+-- Replaced with fn_thread_has_active_invitation(id): SECURITY DEFINER running
+-- as governance_functions (BYPASSRLS), breaks the cycle entirely.
 CREATE POLICY pol_threads_select_contributor
     ON conversation_threads FOR SELECT
     USING (
         fn_lb_membership_role(lifebook_id) = 'contributor'
-        AND EXISTS (
-            SELECT 1
-              FROM thread_obligations
-             WHERE thread_id = conversation_threads.id
-               AND obligation_type = 'invitation'
-               AND obligation_state IN ('pending', 'offered')
-        )
+        AND fn_thread_has_active_invitation(id)
     );
 
 -- ---------------------------------------------------------------------------
@@ -540,33 +848,42 @@ CREATE POLICY pol_obligations_delete_denied
     USING (FALSE);
 
 -- Policy O-2: Steward may select all obligations for threads in their lifebook
+-- D-003 corrective: original policy resolved lifebook_id via subquery on
+-- conversation_threads. pol_threads_select_contributor also subqueried
+-- thread_obligations, creating circular RLS (error 42P17). Fix: denormalize
+-- lifebook_id onto thread_obligations (added in table DDL above) and use it
+-- directly — no subquery on conversation_threads, no cycle.
 CREATE POLICY pol_obligations_select_steward
     ON thread_obligations FOR SELECT
-    USING (
-        fn_lb_membership_role(
-            (SELECT lifebook_id FROM conversation_threads WHERE id = thread_obligations.thread_id)
-        ) = 'steward'
-    );
+    USING (fn_lb_membership_role(lifebook_id) = 'steward');
 
 -- Policy O-3: Steward or AI agent may create obligations
+-- D-003 corrective: same subquery removed; lifebook_id used directly.
 CREATE POLICY pol_obligations_insert_steward_or_agent
     ON thread_obligations FOR INSERT
     WITH CHECK (
         fn_user_is_agent()
-        OR fn_lb_membership_role(
-            (SELECT lifebook_id FROM conversation_threads WHERE id = thread_id)
-        ) = 'steward'
+        OR fn_lb_membership_role(lifebook_id) = 'steward'
     );
 
 -- Policy O-4: Steward or AI agent may update obligation state
+-- D-003 corrective: same subquery removed; lifebook_id used directly.
 CREATE POLICY pol_obligations_update_steward_or_agent
     ON thread_obligations FOR UPDATE
     USING (
         fn_user_is_agent()
-        OR fn_lb_membership_role(
-            (SELECT lifebook_id FROM conversation_threads WHERE id = thread_obligations.thread_id)
-        ) = 'steward'
+        OR fn_lb_membership_role(lifebook_id) = 'steward'
     );
+
+-- Policy O-5: governance_functions role may select all obligations
+-- D-003 corrective: defence-in-depth backstop. fn_thread_has_active_invitation
+-- runs as SECURITY DEFINER / governance_functions with BYPASSRLS, so this policy
+-- is not strictly required. It ensures the query succeeds even if BYPASSRLS is
+-- ever removed from governance_functions — a policy-based safety net independent
+-- of the privilege chain.
+CREATE POLICY pol_obligations_select_governance_functions
+    ON thread_obligations FOR SELECT
+    USING (current_user = 'governance_functions');
 
 -- ---------------------------------------------------------------------------
 -- 10.3 narrative_artifact_links
@@ -659,6 +976,41 @@ GRANT SELECT                  ON TABLE event_artifact_links     TO agent_service
 -- via pol_threads_select_contributor.
 GRANT SELECT ON contributor_thread_view TO authenticated;
 
+-- Step 5: D-002 corrective — governance_functions privilege chain
+-- governance_functions is a NOLOGIN SECURITY DEFINER role. It has no role
+-- memberships and receives no default grants. Without explicit table grants it
+-- cannot read the lookup tables its functions query, even with BYPASSRLS.
+-- BYPASSRLS bypasses row-level security but NOT table-level privilege checks.
+--
+-- ALTER ROLE … BYPASSRLS: postgres has CREATEROLE (confirmed in M0002b), which
+-- is sufficient to set BYPASSRLS on a non-superuser role even when postgres
+-- itself is not superuser. This removes authenticated-role RLS from all
+-- governance_functions queries, preventing any accidental recursive policy fire.
+--
+-- GRANT SELECT: the minimum privilege set required for all five SECURITY DEFINER
+-- functions in M0003 (fn_lb_membership_role, fn_is_subject_of,
+-- fn_has_active_authority, fn_has_source_access_grant, fn_has_contest_standing)
+-- plus the new fn_thread_has_active_invitation added in this migration.
+ALTER ROLE governance_functions BYPASSRLS;
+
+GRANT SELECT ON TABLE
+    lifebook_memberships,
+    user_person_links,
+    authority_assignments,
+    lifebook_source_access,
+    conversation_threads,
+    thread_obligations,
+    contest_records
+TO governance_functions;
+
+-- Step 6: D-003 corrective — fn_thread_has_active_invitation grants
+-- REVOKE from PUBLIC first (defence-in-depth; PUBLIC has EXECUTE by default).
+-- GRANT to authenticated so pol_threads_select_contributor can call it from
+-- within an authenticated-role RLS context. agent_service included per
+-- standard pattern for governance helper functions.
+REVOKE EXECUTE ON FUNCTION fn_thread_has_active_invitation(UUID) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION fn_thread_has_active_invitation(UUID) TO authenticated, agent_service;
+
 -- =============================================================================
 -- COMMIT — end of transaction block
 -- =============================================================================
@@ -676,20 +1028,22 @@ COMMIT;
 --       AND schemaname = 'public';
 --    Expected: 4 rows
 
--- 2. New functions exist:
+-- 2. New functions exist (includes D-003 corrective fn_thread_has_active_invitation):
 --    SELECT proname FROM pg_proc
 --     WHERE proname IN ('fn_thread_continuation_prompt','fn_active_threads',
---                       'fn_obligations_due','_fn_trg_event_review_status_auto_promote')
+--                       'fn_obligations_due','_fn_trg_event_review_status_auto_promote',
+--                       'fn_thread_has_active_invitation')
 --       AND pronamespace = 'public'::regnamespace;
---    Expected: 4 rows
+--    Expected: 5 rows
 
--- 3. Function ownership:
+-- 3. Function ownership (includes D-003 corrective fn_thread_has_active_invitation):
 --    SELECT proname, pg_get_userbyid(proowner) AS owner
 --      FROM pg_proc
 --     WHERE proname IN ('fn_thread_continuation_prompt','fn_active_threads',
---                       'fn_obligations_due','_fn_trg_event_review_status_auto_promote')
+--                       'fn_obligations_due','_fn_trg_event_review_status_auto_promote',
+--                       'fn_thread_has_active_invitation')
 --       AND pronamespace = 'public'::regnamespace;
---    Expected: all 4 rows — owner = governance_functions
+--    Expected: all 5 rows — owner = governance_functions
 
 -- 4. Trigger exists:
 --    SELECT tgname, tgrelid::regclass FROM pg_trigger
@@ -703,12 +1057,12 @@ COMMIT;
 --                         'narrative_artifact_links','event_artifact_links');
 --    Expected: 4 rows
 
--- 6. Policy count for new tables:
+-- 6. Policy count for new tables (D-003 adds pol_obligations_select_governance_functions):
 --    SELECT tablename, count(*) FROM pg_policies
 --     WHERE tablename IN ('conversation_threads','thread_obligations',
 --                         'narrative_artifact_links','event_artifact_links')
 --     GROUP BY tablename;
---    Expected: conversation_threads=6, thread_obligations=4,
+--    Expected: conversation_threads=6, thread_obligations=5,
 --              narrative_artifact_links=3, event_artifact_links=3
 
 -- 7. New indexes:
@@ -756,13 +1110,17 @@ COMMIT;
 --         RETURNING review_status;
 --     Expected: review_status = 'pending'
 
--- 13. View exists:
---     SELECT viewname FROM pg_views WHERE viewname = 'contributor_thread_view';
---     Expected: 1 row
+-- 13. View exists with correct columns (state excluded per conformance review):
+--     SELECT column_name FROM information_schema.columns
+--      WHERE table_name = 'contributor_thread_view'
+--      ORDER BY ordinal_position;
+--     Expected: 5 rows — id, lifebook_id, topic_label, thread_summary, anchor_entity_id
+--     (state is intentionally absent — it reveals obligation metadata)
 
--- 14. Cumulative policy count (was 110 post M0003 — now 110 + 16 = 126):
+-- 14. Cumulative policy count (was 110 post M0003 — now 110 + 16 + 1 D-003 = 127):
+--     D-003 adds pol_obligations_select_governance_functions (+1 beyond original 16).
 --     SELECT count(*) FROM pg_policies WHERE schemaname = 'public';
---     Expected: 126
+--     Expected: 127
 
 -- 15. storage_provider_code FK valid:
 --     SELECT kcu.column_name, ccu.table_name AS foreign_table
