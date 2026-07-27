@@ -35,13 +35,29 @@ Ideas in this document are not prioritised against each other. Prioritisation ha
 
 ---
 
+### 2026-07-27 — Authorship, Provenance, and AI Disclosure Layer
+
+**Context:** During M0004 design and validation, the architectural and policy gaps between LifeBook's current partial provenance support (`submission_origin`, `ai_generated`, `producing_agent_code`, `context_manifest_id`) and a full, auditable provenance model were identified. The question is not whether LifeBook needs this layer — it does — but when.
+
+**Why it matters:** LifeBook preserves records meant to last decades. Any claim, event, or narrative in the authoritative record must be traceable: where did this information originate, what AI operations were applied to it, who reviewed it, and what was the approval chain? The current schema partially supports this, but structured transformation type logging, reviewer identity on approvals, synthetic media labelling, source-to-output lineage, and user-facing provenance summaries are all absent.
+
+**Why it is not part of M0004:** M0004 addresses conversation threading and the event review workflow. Provenance enrichment is architecturally adjacent but would substantially expand scope. More importantly, the right provenance model depends on operational experience — what transformations actually occur in practice — not on theoretical projections. Designing the layer before the conversation experience is in production risks building provenance fields for operations that never happen and missing the ones that matter.
+
+**Current architectural foundations already in place:** `submission_origin`, `ai_generated`, `producing_agent_code`, `context_manifest_id` on claims, events, and artifacts; `review_status` governance chain; `contest_records` and `validity_state` for dispute and epistemic status; `superseded_by_id` lineage on claims; delete-denied policies ensuring the full audit trail is permanent. The policy governing this layer is established in `AUTHORSHIP_PROVENANCE_AND_AI_DISCLOSURE.md`.
+
+**What would trigger formal milestone planning:** Completion of Conversation Experience v1 in production with Founding Members, with real producing agent code and context manifest data being generated. At that point, actual provenance patterns can be observed and the implementation scoped against them.
+
+**Cross-reference:** The AI-generated portrait entry (below) is a specific instance of this broader milestone. When the Authorship, Provenance, and AI Disclosure Layer is formally scoped, the portrait governance question should be resolved within it rather than as a separate design effort.
+
+---
+
 ### 2026-07-27 — AI-generated portrait from description
 
 **Context:** Some subjects of LifeBook entries have no known photographs. During the Founder Acceptance Journey design, the scenario arose of a person born in 1890 whose family has no images.
 
 **Why deferred:** AI image generation raises significant governance questions (Principle IV — the record is governed, not inferred) and cultural sensitivity issues (generating portraits of deceased persons whose communities may not consent to AI representation). This is not a v1 capability.
 
-**What would trigger scoping:** A formal decision on whether AI-generated portrait imagery can ever be a governed artifact, and under what cultural governance constraints. This is a policy decision before a technical one.
+**What would trigger scoping:** Formal design of the Authorship, Provenance, and AI Disclosure Layer (see above), which will establish the governance framework for synthetic media — including permanent labelling requirements, cultural consent constraints, and separation from documentary artifacts. The portrait capability is a specific application of that framework, not a standalone decision.
 
 ---
 
@@ -85,4 +101,4 @@ Ideas in this document are not prioritised against each other. Prioritisation ha
 
 ---
 
-*FUTURE_IDEAS.md — LifeBook HQ — append-only — last updated 2026-07-27*
+*FUTURE_IDEAS.md — LifeBook HQ — append-only — last updated 2026-07-27 (added Authorship, Provenance, and AI Disclosure Layer; updated portrait entry with cross-reference)*
