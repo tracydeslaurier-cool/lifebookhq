@@ -1164,7 +1164,9 @@ CREATE UNIQUE INDEX uq_lifebook_entities_active
 CREATE INDEX idx_lifebook_memberships_user_lifebook ON lifebook_memberships (user_id, lifebook_id);
 CREATE INDEX idx_authority_assignments_role_entity   ON authority_assignments (authority_role, entity_id);
 CREATE INDEX idx_authority_assignments_expiry         ON authority_assignments (effective_until) WHERE effective_until IS NOT NULL;
-CREATE INDEX idx_claims_lifebook_review_access        ON claims (lifebook_id, review_status, access_classification);
+-- NOTE: idx_claims_lifebook_review_access moved to Phase 9 Addendum below —
+-- review_status is added to claims by ALTER TABLE in the Addendum section;
+-- creating the index here (before that ALTER TABLE) would cause SQLSTATE 42703.
 CREATE INDEX idx_display_policy_rules_policy_context  ON display_policy_rules (display_policy_id, display_context_code);
 CREATE INDEX idx_user_person_links_user_entity        ON user_person_links (user_id, person_entity_id);
 CREATE INDEX idx_contest_records_contested_record     ON contest_records (contested_record_table, contested_record_id);
@@ -2805,6 +2807,14 @@ ALTER TABLE claims
 ALTER TABLE narratives
     ADD COLUMN review_status TEXT NOT NULL DEFAULT 'pending'
         CHECK (review_status IN ('pending','under_review','policy_approved','rejected'));
+
+-- Phase 3 Addendum (deferred) — idx_claims_lifebook_review_access
+-- This index could not be created at Phase 3 because review_status is added
+-- to claims by the ALTER TABLE above. Placed here, immediately after that
+-- ALTER TABLE, so the column is guaranteed to exist.
+-- Source: VOCABULARY_RLS_MATRIX.md §9 (same authority as Phase 3 Addendum)
+CREATE INDEX idx_claims_lifebook_review_access
+    ON claims (lifebook_id, review_status, access_classification);
 
 -- ---------------------------------------------------------------------------
 -- COMMIT — end of transaction block

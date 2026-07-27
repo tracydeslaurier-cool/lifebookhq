@@ -421,6 +421,121 @@ def parse_table_body(body: str) -> dict:
     return {'columns': columns, 'pk': pk_cols, 'fks': fks, 'unique': unique_cols}
 
 
+def strip_dollar_quoted_blocks(sql_text: str) -> str:
+    """
+    Replace dollar-quoted blocks ($$..$$ and $tag$..$tag$) with whitespace of equal
+    length so character offsets are preserved for positional ordering.
+    Prevents function body pseudo-SQL from being parsed as DDL.
+    """
+    result = re.sub(
+        r'\$\$.*?\$\$',
+        lambda m: ' ' * len(m.group(0)),
+        sql_text,
+        flags=re.DOTALL
+    )
+    result = re.sub(
+        r'\$\w+\$.*?\$\w+\$',
+        lambda m: ' ' * len(m.group(0)),
+        result,
+        flags=re.DOTALL
+    )
+    return result
+
+
+def check_index_execution_order(sql_text: str, migration_label: str) -> list:
+    """
+    Model the SQL migration execution order statement-by-statement.
+    Detect use-before-definition: CREATE INDEX referencing a column that does not
+    exist in the table at the point the CREATE INDEX statement appears in the file.
+    Returns list of (index_name, table_name, column_name, detail_msg) error tuples.
+    Empty list = all clean.
+    """
+    errors = []
+    cleaned = strip_dollar_quoted_blocks(sql_text)
+    # blank out line comments (preserve offsets)
+    cleaned = re.sub(r'--[^\n]*', lambda m: ' ' * len(m.group(0)), cleaned)
+
+    current_columns: dict = {}
+    events = []
+
+    # CREATE TABLE tbl (...)
+    for m in re.finditer(
+        r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(([^;]*?)\)\s*;',
+        cleaned, re.IGNORECASE | re.DOTALL
+    ):
+        events.append((m.start(), 'create_table', m.group(1), m.group(2)))
+
+    # ALTER TABLE tbl ADD COLUMN col_name type
+    for m in re.finditer(
+        r'ALTER\s+TABLE\s+(?:ONLY\s+)?(\w+)\s+ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+\S+',
+        cleaned, re.IGNORECASE
+    ):
+        events.append((m.start(), 'add_column', m.group(1), m.group(2)))
+
+    # CREATE [UNIQUE] INDEX [CONCURRENTLY] idx ON tbl (cols) [WHERE ...]
+    for m in re.finditer(
+        r'CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)',
+        cleaned, re.IGNORECASE
+    ):
+        events.append((m.start(), 'create_index', m.group(1), m.group(2), m.group(3)))
+
+    events.sort(key=lambda e: e[0])
+
+    for event in events:
+        etype = event[1]
+        if etype == 'create_table':
+            tbl = event[2].lower()
+            body = event[3]
+            cols = set()
+            for line in body.split('\n'):
+                line = line.strip().rstrip(',')
+                if not line:
+                    continue
+                upper = line.upper()
+                if any(upper.startswith(kw) for kw in (
+                    'CONSTRAINT', 'CHECK', 'PRIMARY', 'UNIQUE', 'FOREIGN', 'EXCLUDE', '--'
+                )):
+                    continue
+                parts = line.split()
+                if parts:
+                    cols.add(parts[0].lower().strip('"'))
+            current_columns[tbl] = cols
+
+        elif etype == 'add_column':
+            tbl = event[2].lower()
+            col = event[3].lower()
+            if tbl not in current_columns:
+                current_columns[tbl] = set()
+            current_columns[tbl].add(col)
+
+        elif etype == 'create_index':
+            idx_name = event[2]
+            tbl = event[3].lower()
+            cols_raw = event[4]
+            # strip WHERE clause from column list
+            cols_part = (
+                cols_raw.split('WHERE')[0].strip()
+                if 'WHERE' in cols_raw.upper()
+                else cols_raw
+            )
+            for raw_col in cols_part.split(','):
+                raw_col = raw_col.strip()
+                if not raw_col or '(' in raw_col:
+                    continue
+                col = raw_col.lower().strip('"').split()[0]  # take just identifier
+                tbl_cols = current_columns.get(tbl, set())
+                if col not in tbl_cols:
+                    errors.append((
+                        idx_name, tbl, col,
+                        f"{migration_label}: CREATE INDEX {idx_name} references "
+                        f"{tbl}.{col} which does not exist at this execution point "
+                        f"(table has columns: "
+                        f"{sorted(tbl_cols) if tbl_cols else 'unknown/not yet created'})"
+                    ))
+
+    return errors
+
+
 def extract_alter_add_columns(sql_text: str) -> list:
     """
     Extract (table_name, col_name, col_type) tuples from ALTER TABLE ... ADD COLUMN statements.
@@ -436,6 +551,133 @@ def extract_alter_add_columns(sql_text: str) -> list:
     for m in pattern.finditer(sql_nc):
         result.append((m.group(1), m.group(2), m.group(3)))
     return result
+
+
+def strip_dollar_quoted_blocks(sql_text: str) -> str:
+    """
+    Replace dollar-quoted blocks ($$...$$, $tag$...$tag$) with whitespace of equal
+    length so character offsets are preserved for positional ordering.
+    This prevents function body pseudo-SQL from being parsed as DDL.
+    """
+    # Match $$...$$
+    result = re.sub(r'\$\$.*?\$\$', lambda m: ' ' * len(m.group(0)), sql_text, flags=re.DOTALL)
+    # Match $tag$...$tag$ (tag = word chars)
+    result = re.sub(r'\$\w+\$.*?\$\w+\$', lambda m: ' ' * len(m.group(0)), result, flags=re.DOTALL)
+    return result
+
+
+def check_index_execution_order(sql_text: str, migration_label: str) -> list:
+    """
+    Model the SQL migration execution order statement-by-statement.
+    Detect use-before-definition: CREATE INDEX referencing a column that does not
+    exist in the table at the point the CREATE INDEX statement appears in the file.
+
+    Returns list of (index_name, table_name, column_name, detail_msg) error tuples.
+    Empty list = all clean.
+
+    Strategy:
+      1. Strip dollar-quoted function bodies so function pseudo-SQL is invisible.
+      2. Strip line comments.
+      3. Find all CREATE TABLE, ALTER TABLE ADD COLUMN, and CREATE INDEX with
+         their character-offset positions in the stripped text.
+      4. Sort by position. Process in order, maintaining a current-columns dict.
+      5. For each CREATE INDEX, verify all non-expression columns exist in the
+         current schema state for the target table.
+    """
+    errors = []
+
+    # Step 1: strip dollar-quoted blocks (preserves offsets)
+    cleaned = strip_dollar_quoted_blocks(sql_text)
+    # Step 2: strip line comments (preserves offsets approximately)
+    cleaned = re.sub(r'--[^\n]*', lambda m: ' ' * len(m.group(0)), cleaned)
+
+    # current_columns[table] = set of known column names at this execution point
+    current_columns: dict = {}
+
+    # Collect events: (position, type, *args)
+    events = []
+
+    # CREATE TABLE tbl (...) — capture table name and body
+    for m in re.finditer(
+        r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(([^;]*?)\)\s*;',
+        cleaned, re.IGNORECASE | re.DOTALL
+    ):
+        events.append((m.start(), 'create_table', m.group(1), m.group(2)))
+
+    # ALTER TABLE tbl ADD COLUMN col_name type
+    for m in re.finditer(
+        r'ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)\s+\S+',
+        cleaned, re.IGNORECASE
+    ):
+        events.append((m.start(), 'add_column', m.group(1), m.group(2)))
+
+    # ALTER TABLE tbl ADD col_name type (multi-column: each ADD COLUMN clause)
+    # Already covered above — re.finditer finds each ADD COLUMN individually
+
+    # CREATE [UNIQUE] INDEX idx ON tbl (cols)
+    for m in re.finditer(
+        r'CREATE\s+(?:UNIQUE\s+)?INDEX\s+(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)',
+        cleaned, re.IGNORECASE
+    ):
+        events.append((m.start(), 'create_index', m.group(1), m.group(2), m.group(3)))
+
+    # Sort all events by file position
+    events.sort(key=lambda e: e[0])
+
+    for event in events:
+        etype = event[1]
+
+        if etype == 'create_table':
+            tbl = event[2].lower()
+            body = event[3]
+            # Extract column names from body (simple word before type keyword)
+            cols = set()
+            for line in body.split('\n'):
+                line = line.strip().rstrip(',')
+                if not line:
+                    continue
+                # Skip CONSTRAINT, CHECK, PRIMARY KEY, UNIQUE, FOREIGN KEY lines
+                upper = line.upper()
+                if any(upper.startswith(kw) for kw in (
+                    'CONSTRAINT', 'CHECK', 'PRIMARY', 'UNIQUE', 'FOREIGN',
+                    'EXCLUDE', '--'
+                )):
+                    continue
+                # First token is the column name
+                parts = line.split()
+                if parts:
+                    cols.add(parts[0].lower().strip('"'))
+            current_columns[tbl] = cols
+
+        elif etype == 'add_column':
+            tbl = event[2].lower()
+            col = event[3].lower()
+            if tbl not in current_columns:
+                current_columns[tbl] = set()
+            current_columns[tbl].add(col)
+
+        elif etype == 'create_index':
+            idx_name = event[2]
+            tbl = event[3].lower()
+            cols_raw = event[4]
+            # Parse column list (skip WHERE clause if present)
+            cols_part = cols_raw.split('WHERE')[0].strip() if 'WHERE' in cols_raw.upper() else cols_raw
+            for raw_col in cols_part.split(','):
+                raw_col = raw_col.strip()
+                # Skip expression index parts (contain parentheses or keywords)
+                if not raw_col or '(' in raw_col:
+                    continue
+                col = raw_col.lower().strip('"')
+                tbl_cols = current_columns.get(tbl, set())
+                if col not in tbl_cols:
+                    errors.append((
+                        idx_name, tbl, col,
+                        f"{migration_label}: CREATE INDEX {idx_name} references "
+                        f"{tbl}.{col} which does not exist at this execution point "
+                        f"(table has columns: {sorted(tbl_cols) if tbl_cols else 'unknown/not yet created'})"
+                    ))
+
+    return errors
 
 
 def build_schema_model(sql_texts: list) -> dict:
@@ -1119,6 +1361,58 @@ def main():
     check("REGR-010: M0003 explicit CREATE INDEX count = 14",
           len(m0003_sem_indexes) == 14,
           f"found {len(m0003_sem_indexes)}")
+
+    # ── Section 16: Execution-Order Validation ─────────────────────────────────
+    section("16. Execution-Order Validation (EO-001 through EO-003)")
+
+    # EO-001: No index in M0003 references a column that does not exist at the
+    # point the CREATE INDEX statement executes (use-before-definition detection).
+    m0003_sql_text = sqls['M0003']
+    eo_errors = check_index_execution_order(m0003_sql_text, "M0003")
+    check(
+        "EO-001: All M0003 CREATE INDEX statements reference columns that exist "
+        "at their execution point",
+        len(eo_errors) == 0,
+        "; ".join(f"{e[0]}:{e[1]}.{e[2]}" for e in eo_errors) if eo_errors
+        else "all indexes reference columns already present at execution point"
+    )
+
+    # EO-002: idx_claims_lifebook_review_access appears AFTER the ALTER TABLE that
+    # adds review_status to claims (positional check in raw text).
+    m0003_raw = m0003_sql_text
+    idx_pos = m0003_raw.find('CREATE INDEX idx_claims_lifebook_review_access')
+    alter_review_pos = m0003_raw.find(
+        'ADD COLUMN review_status'
+    )
+    eo002_ok = (idx_pos != -1 and alter_review_pos != -1 and idx_pos > alter_review_pos)
+    check(
+        "EO-002: idx_claims_lifebook_review_access appears after ADD COLUMN review_status",
+        eo002_ok,
+        f"idx at char {idx_pos}, alter at char {alter_review_pos}" if not eo002_ok
+        else f"idx at char {idx_pos} > alter at char {alter_review_pos}"
+    )
+
+    # EO-003: No CREATE INDEX in M0003 Phase 3 section references review_status
+    # (the column that previously caused SQLSTATE 42703 at statement 72).
+    # Detect by finding the Phase 3 block boundary and checking for review_status.
+    phase3_start = m0003_raw.find('-- Phase 3 —')
+    phase4_start = m0003_raw.find('-- Phase 4 —')
+    eo003_ok = True
+    eo003_detail = "no review_status reference in Phase 3 index block"
+    if phase3_start != -1 and phase4_start != -1:
+        phase3_block = m0003_raw[phase3_start:phase4_start]
+        # Strip comments before checking
+        phase3_no_comments = re.sub(r'--[^\n]*', '', phase3_block)
+        if 'review_status' in phase3_no_comments:
+            eo003_ok = False
+            eo003_detail = "review_status found in Phase 3 DDL block (use-before-definition risk)"
+    else:
+        eo003_detail = "Phase 3/4 markers not found — check skipped"
+    check(
+        "EO-003: Phase 3 index block contains no reference to review_status column",
+        eo003_ok,
+        eo003_detail
+    )
 
     # ── Final Summary ──────────────────────────────────────────────────────────
     section("SUMMARY")

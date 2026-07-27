@@ -13,7 +13,7 @@
 ## Why CLI Is Required
 
 The Supabase MCP `apply_migration` tool requires the full SQL as a single string parameter.
-`20260726083203_core_schema.sql` is 179,683 bytes (~45K tokens). This exceeds the model output
+`20260726083203_core_schema.sql` is 180,269 bytes (~45K tokens). This exceeds the model output
 token limit for a single tool invocation. This is a tooling transport limitation only — it is not
 a schema defect. The migration file is correct and fully validated.
 
@@ -31,9 +31,9 @@ still writing the correct migration-history record into `supabase_migrations.sch
 | Field        | Value                                                                    |
 |--------------|--------------------------------------------------------------------------|
 | File         | `supabase/migrations/20260726083203_core_schema.sql`                     |
-| Byte count   | 179,683                                                                  |
-| Line count   | 2,872                                                                    |
-| SHA-256      | `dadf430271df142092013d1435e7ec0008130fde28ddb33e650bc9758f00abce`       |
+| Byte count   | 180,269                                                                  |
+| Line count   | 2,882                                                                    |
+| SHA-256      | `6fa61db4550c57a92693daa9f5fb88afa6bc73881ef3f275fb85464a4d4e0af1`       |
 | Git commit   | `fc65680646cecedecf5f86f384487cd0187335e4`                               |
 | Commit msg   | `fix(m0003): correct persons entity_id FK references and RLS joins; add semantic validator` |
 | Working tree | Clean (no uncommitted changes to this file)                              |
@@ -183,7 +183,7 @@ sha256sum supabase/migrations/20260726083203_core_schema.sql
 
 **Expected:**
 ```
-dadf430271df142092013d1435e7ec0008130fde28ddb33e650bc9758f00abce  supabase/migrations/20260726083203_core_schema.sql
+6fa61db4550c57a92693daa9f5fb88afa6bc73881ef3f275fb85464a4d4e0af1  supabase/migrations/20260726083203_core_schema.sql
 ```
 
 If the SHA-256 does not match — **STOP. Do not apply. Report to DP.**
@@ -493,8 +493,8 @@ to the active session and confirm. The session will then proceed with:
 > tooling transport limitation only. It is not a schema defect and does not affect the
 > validity of the migration. The migration file is frozen at commit
 > `fc65680646cecedecf5f86f384487cd0187335e4`, SHA-256
-> `dadf430271df142092013d1435e7ec0008130fde28ddb33e650bc9758f00abce`, 179,683 bytes,
-> 2,872 lines. No further schema modifications are authorised until CLI execution either
+> `6fa61db4550c57a92693daa9f5fb88afa6bc73881ef3f275fb85464a4d4e0af1`, 180,269 bytes,
+> 2,882 lines. No further schema modifications are authorised until CLI execution either
 > succeeds completely or exposes a genuine runtime SQL defect.
 
 ---

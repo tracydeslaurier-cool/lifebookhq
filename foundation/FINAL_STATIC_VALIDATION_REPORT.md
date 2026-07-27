@@ -143,7 +143,7 @@ All four migrations parsed cleanly with pglast. No syntax errors. No unclassifie
 | M0001 | 1,761 | 158 | CLEAN |
 | M0002 | 207 | 8 | CLEAN |
 | M0002b | 186 | 10 | CLEAN |
-| M0003 | 2,872 | 302 | CLEAN |
+| M0003 | 2,882 | 302 | CLEAN |
 
 ### Statement Breakdown — M0001 (158)
 
@@ -305,12 +305,13 @@ Migration files must not be modified after this manifest without regenerating th
 | M0001 | `20260724153745_types_and_vocabularies.sql` | `10299654bc6d58ede4f685fbe2642149498ef08e652d3ea98231e449bada9f93` | 1,761 | 81,844 |
 | M0002 | `20260726083201_predicate_governance_types.sql` | `1022fd2aa57410a005da4502dc64a0ba07fc363c0f2d45d771bd39d458178656` | 207 | 8,576 |
 | M0002b | `20260726083202_application_roles.sql` | `24daadbeef3afd448a5637a5a0c5cec28fea23dd48948a9f1203c15e9f064d24` | 186 | 7,885 |
-| M0003 | `20260726083203_core_schema.sql` | `dadf430271df142092013d1435e7ec0008130fde28ddb33e650bc9758f00abce` | 2,872 | 179,683 |
+| M0003 | `20260726083203_core_schema.sql` | `6fa61db4550c57a92693daa9f5fb88afa6bc73881ef3f275fb85464a4d4e0af1` | 2,882 | 180,269 |
 
-**Note on M0003 checksum change:** M0003 has undergone three corrections since initial authoring:
+**Note on M0003 checksum change:** M0003 has undergone four corrections since initial authoring:
 1. Renamed from `20260726083201_core_schema.sql`; header updated; `CREATE ROLE governance_functions` removed (SHA-256 was: `9770d0b34398047ded53c447f6364842582addb1d54e2d2352ddd28319231c41`, then: `e254372a6c6658ea87b68ad4b747a974e632b16ad9632eb0eefa060fac916110`).
 2. Removed stale `idx_entities_lifebook_id` index 2026-07-26 — entities has no `lifebook_id` column; index count reduced 15 → 14 (SHA-256: `fbd60d9f5208be8b6af567cc341a80e7a4ccfc67c5c909a5da541609f395a60a`, 179,606 bytes).
 3. FK defect correction 2026-07-26 — REFERENCES persons(id) → persons(entity_id) in 3 tables; RLS joins p.id → p.entity_id in 8 locations. Line count unchanged (2,872); byte count 179,606 → 179,683.
+4. Authored-order defect correction 2026-07-26 — `CREATE INDEX idx_claims_lifebook_review_access` moved from Phase 3 (line 1167, before `ALTER TABLE claims ADD COLUMN review_status`) to after the Addendum ALTER TABLE that adds review_status. Root cause: SQLSTATE 42703 at runtime on disposable project iximbhwsjmppsdiwdixl. Lines 2,872 → 2,882; bytes 179,683 → 180,269. Validator extended with Section 16 (EO-001 through EO-003); all 137 checks pass.
 The checksum above reflects the fully corrected file.
 
 **Git working tree state:** M0001 and M0002 committed (hash ee8dd0f and prior). M0002b and M0003 (renamed) require commit — Task #141.
