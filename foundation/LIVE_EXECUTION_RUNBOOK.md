@@ -34,8 +34,8 @@ still writing the correct migration-history record into `supabase_migrations.sch
 | Byte count   | 182,054                                                                  |
 | Line count   | 2,906                                                                    |
 | SHA-256      | `f7b53f2af187c6fffc2dd228c7cbb4d9ec860e8e7f197760d4afb57918b31c60`       |
-| Git commit   | `5dac8d3`                               |
-| Commit msg   | `fix(M0003): add GRANT governance_functions TO current_user (DEF-0003)` |
+| Git commit   | `b5de3c0`                               |
+| Commit msg   | `fix(M0003): replace GRANT governance_functions TO current_user with postgres (DEF-0003)` |
 | Working tree | Clean (no uncommitted changes to this file)                              |
 
 **Do not modify the migration file.** If a runtime defect is found, a new DP session is required
