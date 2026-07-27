@@ -34,7 +34,7 @@ still writing the correct migration-history record into `supabase_migrations.sch
 | Byte count   | 181,758                                                                  |
 | Line count   | 2,903                                                                    |
 | SHA-256      | `2559ca0e56769bc159e5943bbdf7c1326bfb154179440a218e74fb9d90047f8a`       |
-| Git commit   | `cc85515`                               |
+| Git commit   | `5dac8d3`                               |
 | Commit msg   | `fix(m0003): correct persons entity_id FK references and RLS joins; add semantic validator` |
 | Working tree | Clean (no uncommitted changes to this file)                              |
 
@@ -503,7 +503,7 @@ to the active session and confirm. The session will then proceed with:
 > cannot transport approximately 180 KB of SQL in a single tool invocation. This is a
 > tooling transport limitation only. It is not a schema defect and does not affect the
 > validity of the migration. The migration file is frozen at commit
-> `cc85515`, SHA-256
+> `5dac8d3`, SHA-256
 > `2559ca0e56769bc159e5943bbdf7c1326bfb154179440a218e74fb9d90047f8a`, 181,758 bytes,
 > 2,903 lines. No further schema modifications are authorised until CLI execution either
 > succeeds completely or exposes a genuine runtime SQL defect.
