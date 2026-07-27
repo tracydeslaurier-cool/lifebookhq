@@ -280,7 +280,9 @@ Option C goes too far in the other direction. If events carry no review gate, th
 
 Option B resolves the tension correctly: it applies the same rule as claims and narratives (the gate is based on `submission_origin`), but makes steward-created events immediately authoritative. A steward opening LifeBook and explicitly creating a "Marriage in Kyiv, 1971" event has asserted that fact with their own authority. An AI-created event from conversation inference has not.
 
-**Boundary clarification:** Option B means the `review_status` column is added to `events` as proposed in M0004. The default is `pending`. Events created with `submission_origin = 'steward_direct'` should have their `review_status` set to `steward_reviewed` at insert time, either via the application layer or via a trigger. The trigger approach is preferred for governance integrity: it ensures the rule is enforced at the database level regardless of which application path created the record.
+**Boundary clarification (including DP refinement, 2026-07-27):** Option B means the `review_status` column is added to `events` as proposed in M0004. The default is `pending`. Events created with `submission_origin = 'steward_direct'` have their `review_status` set to `steward_reviewed` at insert time via a BEFORE INSERT trigger.
+
+**Critical distinction (DP-refined):** Steward initiation of a session or workflow does NOT make AI-inferred events authoritative. Only events explicitly authored by a steward — where the steward directly creates the event record — qualify for `submission_origin = 'steward_direct'`. When the AI creates an event record from conversation inference during a steward-initiated session, that event must carry `submission_origin = 'ai_assisted'` and therefore remains `review_status = 'pending'`. The authorship rule is about the record's creator, not the session's initiator. This is enforced in two places: the Claim Generator (which assigns `submission_origin` at write time) and the trigger (which auto-promotes only `steward_direct` events).
 
 ### Long-Term Implications
 

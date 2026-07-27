@@ -220,6 +220,20 @@ The Claim Generator receives structured claim candidates from the Memory Extract
 - For corrections (conflict_flag = true or explicit user correction): create the new claim as above, then set `superseded_by_id` on the prior claim and transition its `dispute_status` to `superseded`
 - Return written claim IDs to the Orchestrator for inclusion in the turn response
 
+### 6.1.1 Event Records Created from Conversation Inference
+
+When a conversation turn implies an event (e.g., a birth date claim implies a birth event, a wedding story implies a marriage event), the Claim Generator may create event records in the `events` table as a structural byproduct of claim writing.
+
+**All such event records must carry `submission_origin = 'ai_assisted'` regardless of who initiated the session.**
+
+This is a firm governance constraint approved by the DP (2026-07-27). A steward-initiated session does not transfer steward authorship to AI-inferred records. The authorship rule is about who created the record, not who initiated the session.
+
+Specifically:
+- A steward opens a conversation and says "Marta was born July 14, 1947 in Poltava." The Claim Generator creates a birth date claim AND a birth event record. Both carry `submission_origin = 'ai_assisted'` and `review_status = 'pending'` — because both were created by the AI from inference, not by the steward directly.
+- A steward directly creates an event through the API (`POST /api/v1/events` with explicit steward authorship) — that event carries `submission_origin = 'steward_direct'` and is auto-promoted to `review_status = 'steward_reviewed'` by a database trigger.
+
+The Claim Generator must never assign `submission_origin = 'steward_direct'` to any record it creates. That designation belongs exclusively to records created through the direct steward authorship path, not the AI conversation path.
+
 ### 6.2 What It Does NOT Do
 
 - Does not analyze conversation turns. It receives pre-analyzed candidates; it does not re-interpret user input.
@@ -227,6 +241,7 @@ The Claim Generator receives structured claim candidates from the Memory Extract
 - Does not write claims with `evidence_status` above `inferred`. Elevation to `supported` or `corroborated` requires human review.
 - Does not delete or overwrite existing claims. Corrections are handled via supersession only.
 - Does not write claims for predicates that do not exist in `claim_predicates`. Unknown predicates are flagged for steward attention rather than silently creating invalid records.
+- Does not assign `submission_origin = 'steward_direct'` to any record it creates. This designation is reserved for records created through direct steward authorship paths, never through AI conversation inference.
 
 ### 6.3 Communication with Other Components
 
