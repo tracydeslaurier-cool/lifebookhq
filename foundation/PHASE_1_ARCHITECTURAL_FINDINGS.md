@@ -346,6 +346,29 @@ The following are established by Principles IX and X and are not subject to revi
 
 ---
 
+## Finding: Relationship Model Emergence
+
+*Recorded 2026-07-27. Source: schema scan during Vocabulary-to-Architecture Review.*
+
+The schema already encodes two distinct relationship models for the people involved with a LifeBook:
+
+**Membership roles** describe governance responsibilities — what a person is authorized to do within the system in relation to a specific LifeBook object. Values: `steward`, `contributor`, `viewer`. Source: `lifebook_memberships.membership_role`.
+
+**Participation roles** describe epistemic relationships — what connection a person had to the subject of a LifeBook entry (an event, a period, a narrative). Values include: `subject`, `storyteller`, `family_member`, `witness`, `contributor`, `steward`, `event_participant`, and others. Source: `lifebook_entities.participation_role`.
+
+These are orthogonal. A person's membership role does not determine their participation role, and vice versa.
+
+**`storyteller` already exists as a participation concept in M0003.** No migration is required to establish it. The schema recognized the epistemic relationship before the experience vocabulary named it.
+
+The gap is not in the schema. It is in the bridge between the participation role model and the conversation experience: how a person's participation role should influence what the AI asks, what it offers, and how it receives their contributions has not yet been designed.
+
+Future experience design — informed by Phase 1 validation — should determine how participation roles shape conversation behaviour. That work belongs in the application and orchestration layers, not in additional schema fields.
+
+**What this finding preserves:**
+The distinction between governance (who holds responsibility), contribution (who adds material), and meaning-bearing (who carries lived knowledge) is now anchored in both the schema and the vocabulary. These three relationships must remain separable in all future design decisions.
+
+---
+
 ## Post-Validation Sections
 
 The following sections will be populated after sessions are completed:
