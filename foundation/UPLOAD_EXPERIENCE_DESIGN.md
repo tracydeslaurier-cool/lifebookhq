@@ -27,6 +27,18 @@ These objects carry weight that the AI cannot fully perceive. It can observe tha
 
 This is the foundational constraint on the upload experience: the AI may observe. It may not interpret. The person decides what the artifact means. The AI's job is to receive it carefully, ask one good question, and hold space for the answer.
 
+### 2.1 Preservation vs. Discovery: The First Question
+
+Before the system asks anything about what an artifact contains, it must understand why the person brought it forward. There are two fundamentally different reasons:
+
+**Preservation:** "I have this. I want it kept." The person may have nothing more to add right now. The act of uploading is itself complete. The system's job is to receive and hold.
+
+**Discovery:** "I have this. I want to understand it." The person is ready to investigate — to identify, connect, or interpret. The system's job is to open a thread.
+
+The system cannot ask "are you here to preserve or discover?" directly — that question is too clinical. But the single contextualizing question after an upload is, in practice, an attempt to detect intent from the response. A person who says "I don't know — I just found it" is in Preservation mode. A person who says "This is my grandmother before she left" is in Discovery mode and has already begun.
+
+**The governing rule:** If the response to the contextualizing question is minimal, closed, or "I don't know" — the system receives it as Preservation and stops. It does not try to move the person toward Discovery. Discovery happens when the person initiates it, not when the system decides it should happen.
+
 ---
 
 ## 3. The Artifact Relationship Model

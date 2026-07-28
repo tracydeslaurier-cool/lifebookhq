@@ -17,6 +17,35 @@ This is the experience model: what the person understands about their artifacts,
 
 ---
 
+## 1.1 The Artifact Relationship Principle
+
+LifeBook distinguishes between two fundamentally different things a person may be doing when they bring an artifact forward:
+
+**Artifact Preservation:** "I have this photograph." The person is giving LifeBook something to hold. Their intent is safekeeping. They may have nothing more to say about it right now — and that is complete.
+
+**Artifact Discovery:** "I wonder what this photograph can reveal." The person is inviting investigation. They want to understand the artifact more deeply — who is in it, what it connects to, what it might mean.
+
+The same artifact may serve either purpose depending on the person and the moment. A person who uploads their grandmother's photograph on the day their grandmother died is doing something different from a person who uploads the same photograph six months later, curious about who the other people in it might be. The artifact is identical. The relationship the person wants with it is not.
+
+**LifeBook never assumes discovery is wanted when preservation is offered.**
+
+The question that governs every artifact interaction is not "What is this artifact?" It is: **"What relationship does the person want to have with this artifact right now?"**
+
+That question is as important as anything the system could technically determine about the artifact itself. The artifact is only half the story. The other half is why the person brought it forward.
+
+**The five modes of artifact engagement (person-determined, not AI-determined):**
+
+A person may bring an artifact forward to:
+- **Share** it — make it part of the LifeBook, no further action required
+- **Remember** it — use it to prompt their own memory, without expecting the system to analyze it
+- **Investigate** it — actively seek to understand what it contains or depicts
+- **Connect** it — anchor it to a specific story, person, or event
+- **Interpret** it — add meaning they have decided to attach to it
+
+AI analysis is an invitation, not a default. The system may offer, once, a question that opens the door to any of these modes. The person's response — including silence — determines which mode they are in. The system follows. It does not lead.
+
+---
+
 ## 2. The Three-Layer Model
 
 Every artifact in LifeBook exists in relationship to three layers. Not every artifact has all three. The Original Artifact is always present. Restoration and Interpretation are added by humans — never automatically.
