@@ -291,11 +291,46 @@ These aids must never obscure or replace the original expression. The listener m
 
 A StoryTeller may choose to record the same story in multiple languages. Each recording is an independent authenticated expression and is treated as an original historical artifact.
 
+### AI-Assisted Expression
+
+A StoryTeller may use human or AI editorial assistance to help articulate their own memories, beliefs, and intended meaning.
+
+The governing distinction is not whether AI contributed wording. It is whether the StoryTeller knowingly chose, reviewed, and adopted the final expression as their own.
+
+A useful analogy: a lawyer may draft a will, organize the language, and propose wording — but once the client reviews and executes it, the document becomes the client's legal expression. The lawyer assisted with authorship. The lawyer did not become the speaker.
+
+**Permitted assistance includes:** helping organize thoughts, proposing clearer wording, correcting grammar, reducing repetition, restructuring a narrative, asking clarifying questions, and offering alternative formulations.
+
+For AI-assisted material to qualify as authenticated expression, the StoryTeller must:
+
+1. Knowingly review the resulting wording
+2. Have a meaningful opportunity to revise or reject it
+3. Affirm that it accurately represents what they intended to say
+4. Explicitly adopt it as their own expression
+
+The controlling question is not *who produced the first draft*. It is *who chose and authenticated the final words*.
+
+**AI may assist authorship. It may never assume authorship.**
+
+Unreviewed AI-generated expression is not authentic StoryTeller expression. It must never be spoken in the StoryTeller's voice, attributed to the StoryTeller, presented in the first person as though authored by them, or incorporated into the permanent historical record as their authenticated words.
+
+### Provenance of AI-Assisted Expression
+
+LifeBook should preserve the provenance trail of AI-assisted expression. Where applicable, the system should retain:
+
+- The original spoken or written input
+- The AI-assisted draft
+- StoryTeller revisions
+- The final adopted version
+- The date and method of authentication
+
+This provenance does not make the final expression less authentic. It demonstrates how authenticity was established. The evidence of process is itself part of the record.
+
 ### The Guiding Boundary
 
 > *Comprehension may be augmented. Expression may not be altered.*
 
-This principle is a constitutional boundary, not an implementation guide. It is not a request to build first-person narration, voice synthesis, or translation. Its purpose is to ensure that when any of those capabilities are ever considered, this constraint governs from the start.
+This principle is a constitutional boundary, not an implementation guide. It is not a request to build first-person narration, voice synthesis, translation, or AI drafting workflows. Its purpose is to ensure that when any of those capabilities are ever considered, this constraint governs from the start.
 
 *Note: This principle establishes an architectural boundary for future capability decisions. No current implementation is affected.*
 
