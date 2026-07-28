@@ -196,6 +196,34 @@ These four movements must be implemented, not merely expressed. If the orchestra
 
 ---
 
+## Principle XI — LifeBook Models Relationships, Not Roles
+
+LifeBook does not assign people fixed identity categories. It models the relationships a person holds — to the LifeBook as an object, to the subject of the LifeBook, and to the specific story, artifact, or memory being discussed.
+
+A person may simultaneously be a Steward, a StoryTeller, a Contributor, and a Witness — in different contexts, at the same time. These are not mutually exclusive.
+
+**Two distinct relationship axes:**
+
+Governance relationships describe responsibility for managing a LifeBook — who holds custody, controls access, reviews contributions, and makes decisions about the authoritative record. The Steward is the governance relationship. It is represented in `lifebook_memberships.membership_role` and grants permissions. It says nothing about what a person knows or remembers.
+
+Meaning-bearing relationships describe a person's connection to the story, subject, artifact, or memory — who carries lived experience, who witnessed an event, who contributed knowledge, whose life is being recorded. These are represented in `lifebook_entities.participation_role`. They carry no governance authority. They carry epistemic weight.
+
+These two axes are orthogonal. A Steward may have no personal memory of the subject. A StoryTeller may have the richest memory of all and hold only Contributor-level access. The system must not conflate what a person can do with what a person knows.
+
+**What this means in practice:**
+
+The questions LifeBook asks, the invitations it offers, and the authority it assigns to contributed information must be calibrated to the person's relationship to the story — not their membership level. A StoryTeller is asked for memory. A Contributor is asked for knowledge. A Steward is asked for governance decisions. A Witness is asked to confirm.
+
+These invitations are not interchangeable. Asking the wrong question to the wrong relationship is not a UX problem — it is a failure to understand who the person is in relation to the story.
+
+**The constraint this principle places on implementation:**
+
+Do not collapse governance, contribution, and meaning-bearing relationships into a single role model. The schema already keeps them separate. The conversation and orchestration layers must honour that separation.
+
+*See ROLE_DEFINITIONS.md and PHASE_1_ARCHITECTURAL_FINDINGS.md (Architectural Principle: LifeBook Models Relationships, Not Roles) for full specification.*
+
+---
+
 ## On These Principles
 
 These principles were not invented. They emerged from the design process: from the governance architecture, from the migration philosophy, from the tone guide, and from conversations about what LifeBook actually is.

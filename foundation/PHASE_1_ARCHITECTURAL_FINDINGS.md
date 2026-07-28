@@ -346,26 +346,111 @@ The following are established by Principles IX and X and are not subject to revi
 
 ---
 
-## Finding: Relationship Model Emergence
+## Architectural Principle: LifeBook Models Relationships, Not Roles
 
-*Recorded 2026-07-27. Source: schema scan during Vocabulary-to-Architecture Review.*
+*Established 2026-07-27. Authority: Discovery Partner. Supersedes "Finding: Relationship Model Emergence."*
 
-The schema already encodes two distinct relationship models for the people involved with a LifeBook:
+---
 
-**Membership roles** describe governance responsibilities — what a person is authorized to do within the system in relation to a specific LifeBook object. Values: `steward`, `contributor`, `viewer`. Source: `lifebook_memberships.membership_role`.
+### The Principle
 
-**Participation roles** describe epistemic relationships — what connection a person had to the subject of a LifeBook entry (an event, a period, a narrative). Values include: `subject`, `storyteller`, `family_member`, `witness`, `contributor`, `steward`, `event_participant`, and others. Source: `lifebook_entities.participation_role`.
+**LifeBook should model relationships, not fixed human roles.**
 
-These are orthogonal. A person's membership role does not determine their participation role, and vice versa.
+A fixed role model assigns a person a single identity label and derives all system behaviour from it. A relationship model recognizes that a person may stand in different relationships to the LifeBook, its subject, and its content simultaneously — and that each relationship has different implications for how the system should behave.
 
-**`storyteller` already exists as a participation concept in M0003.** No migration is required to establish it. The schema recognized the epistemic relationship before the experience vocabulary named it.
+These relationships may overlap. A single person may simultaneously be:
+- Steward of a LifeBook
+- StoryTeller regarding their own memories of the subject
+- Contributor regarding another person's experiences
+- Witness regarding a specific event
 
-The gap is not in the schema. It is in the bridge between the participation role model and the conversation experience: how a person's participation role should influence what the AI asks, what it offers, and how it receives their contributions has not yet been designed.
+These are not mutually exclusive identity categories. They are contextual relationships that the system must keep separable.
 
-Future experience design — informed by Phase 1 validation — should determine how participation roles shape conversation behaviour. That work belongs in the application and orchestration layers, not in additional schema fields.
+---
 
-**What this finding preserves:**
-The distinction between governance (who holds responsibility), contribution (who adds material), and meaning-bearing (who carries lived knowledge) is now anchored in both the schema and the vocabulary. These three relationships must remain separable in all future design decisions.
+### Governance Relationships
+
+Governance relationships describe **responsibility for managing a LifeBook**.
+
+| Relationship | Description |
+|---|---|
+| **Steward** | Responsible for custody, permissions, continuity, invitations, and governance decisions. Controls who has access and what enters the authoritative record. |
+
+Governance relationships are represented in: `lifebook_memberships.membership_role`
+
+---
+
+### Meaning-Bearing Relationships
+
+Meaning-bearing relationships describe **a person's relationship to the story, subject, artifact, or memory**.
+
+| Relationship | Description |
+|---|---|
+| **StoryTeller** | A person who carries lived experience, memory, reflection, or personal meaning related to a LifeBook subject or narrative. The source of Interpretation. |
+| **Contributor** | A person who adds knowledge, context, artifacts, or information that may enrich a LifeBook. May or may not carry personal memory. |
+| **Witness** | A person who observed an event or can provide firsthand context about it. |
+| **Subject** | The person, family, community, or entity whose life or story is being represented. |
+
+Meaning-bearing relationships are represented in: `lifebook_entities.participation_role`
+
+---
+
+### Architectural Constraints (No Schema Changes Required)
+
+1. **`lifebook_memberships.membership_role`** represents governance responsibility — what a person is authorized to do in relation to a LifeBook object. Current values: `steward`, `contributor`, `viewer`.
+
+2. **`lifebook_entities.participation_role`** represents relationship to the subject or story — what connection a person has to the life being recorded. Current values include: `subject`, `storyteller`, `family_member`, `witness`, `contributor`, `event_participant`, and others.
+
+3. **`participation_role = 'storyteller'` already exists in M0003.** The concept is established in the schema. No migration is required to create it.
+
+4. **No new StoryTeller membership role should be created.** StoryTeller is not a governance designation. Adding it to `membership_role` would conflate meaning-bearing relationship with permission level — exactly the conflation this principle is designed to prevent.
+
+5. **The remaining gap is not storage — it is application behaviour.** The schema models the relationships. The conversation and orchestration layers do not yet use them to calibrate system behaviour.
+
+---
+
+### The Future Question
+
+> **"How should LifeBook behave differently depending on a person's relationship to the story?"**
+
+This question belongs in the conversation and application layers. It is not a schema question.
+
+---
+
+### Conversation-Layer Implications
+
+Relationship context should influence:
+- the questions LifeBook asks
+- the invitations it offers
+- the level of authority assigned to the information provided
+- the way artifacts are presented
+- the distinction between memory, knowledge, governance, and approval
+
+**The system must not assume these relationships are interchangeable.**
+
+Examples of differentiated conversation behaviour:
+
+A **StoryTeller** may be invited to share memory:
+> "What do you remember about that day?"
+
+A **Contributor** may be invited to add context:
+> "Is there anything else you know about this person or event?"
+
+A **Steward** may be invited to manage access:
+> "Would you like to invite others who may have memories to share?"
+
+A **Witness** may be invited to place themselves in the record:
+> "You mentioned you were there — would you like to be noted as a witness to this event?"
+
+These invitations are not interchangeable. A StoryTeller asked "is there anything else you know?" is being treated as an information source. A Contributor asked "what do you remember?" is being asked for something they may not have. The system must know which relationship it is addressing in order to ask the right question.
+
+---
+
+### What This Principle Preserves
+
+The distinction between governance, contribution, and meaning-bearing relationships must remain separable in all future implementation decisions. The purpose of this principle is to prevent those three concepts from being accidentally collapsed into a single role model — in the schema, in the application, or in the vocabulary — as implementation proceeds.
+
+The schema already encodes the separation. The obligation now belongs to the people designing the conversation and orchestration layers to honour it.
 
 ---
 

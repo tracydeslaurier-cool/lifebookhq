@@ -9,7 +9,16 @@
 
 ## Overview
 
-LifeBook defines three distinct human roles in relationship to a LifeBook. These roles may overlap in one person, but they represent different relationships with the LifeBook and must not be conflated in design, conversation, or implementation.
+LifeBook models relationships, not fixed human roles.
+
+A fixed role model assigns a person a single identity label and derives all system behaviour from it. LifeBook's model is different: a person may stand in multiple relationships to a LifeBook simultaneously, and each relationship has different implications for how the system should behave. These relationships are contextual — they may differ across LifeBooks, across sessions, and across the specific story or artifact being discussed.
+
+This document defines the relationships LifeBook recognizes. They are organized into two distinct categories, which must not be conflated:
+
+**Governance relationships** — responsibility for managing the LifeBook as an object.  
+**Meaning-bearing relationships** — connection to the subject, story, or memory being preserved.
+
+A person may simultaneously hold relationships in both categories. That is expected and normal. What the system must not do is assume that a governance relationship implies a meaning-bearing one, or vice versa.
 
 The reason the distinction matters: LifeBook is not a genealogy system.
 
@@ -19,6 +28,8 @@ LifeBook asks: *Who carries meaning about this life?*
 Those are different questions. A granddaughter may hold more meaningful memories of a grandmother than a biological child. A neighbour may carry the only surviving story about someone. A friend may know the context behind a photograph that no family member can explain. Biological or legal relationship does not determine who is the StoryTeller.
 
 This distinction is what makes LifeBook a richer human model than a genealogical record.
+
+*Formal architectural statement: PHASE_1_ARCHITECTURAL_FINDINGS.md — Architectural Principle: LifeBook Models Relationships, Not Roles.*
 
 ---
 
