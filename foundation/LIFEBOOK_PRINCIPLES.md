@@ -64,15 +64,25 @@ The governance functions — `fn_lb_membership_role`, `fn_user_is_agent`, and th
 
 ---
 
-## Principle V — Families Contribute, Stewards Decide
+## Principle V — StoryTellers Carry Meaning, Stewards Hold Custody
 
-A LifeBook has one steward per lifebook (or a designated set). The steward is the decision-maker. Contributors — family members, invited participants — add material, but the steward governs what is published, what is restricted, and what is shared.
+A LifeBook has one Steward per lifebook (or a designated set). The Steward holds governance authority: permissions, access, review, and custody over time.
+
+The StoryTeller carries meaning: memories, lived experience, personal knowledge about the life being recorded. The Steward controls who sees the story. The StoryTeller is the source of the story.
+
+These roles may be held by the same person — but they are not the same role. A granddaughter building her grandmother's LifeBook is the Steward. Her grandmother, if she contributes memories, is the primary StoryTeller. The granddaughter, when she shares her own memories of her grandmother, is also a StoryTeller.
+
+Contributors enrich understanding without necessarily carrying meaning — a researcher, an archivist, a family member who adds documents without personal memory of them.
 
 This means:
-- Contributions from non-stewards land in `pending_review`, not in the published record
-- Invitation flows are steward-initiated
-- Access classifications are steward-controlled
+- Contributions from non-Stewards land in `pending_review`, not in the published record
+- Invitation flows are Steward-initiated
+- Access classifications are Steward-controlled
+- The StoryTeller cannot be automated — AI may invite, never substitute
 - Dispute mechanisms exist for contested facts, but resolution is governed — not majority-voted
+- Biological or legal relationship does not determine who is the StoryTeller; meaning does
+
+*See ROLE_DEFINITIONS.md for the authoritative vocabulary.*
 
 ---
 

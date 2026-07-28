@@ -37,7 +37,7 @@ Before the system asks anything about what an artifact contains, it must underst
 
 The system cannot ask "are you here to preserve or discover?" directly — that question is too clinical. But the single contextualizing question after an upload is, in practice, an attempt to detect intent from the response. A person who says "I don't know — I just found it" is in Preservation mode. A person who says "This is my grandmother before she left" is in Discovery mode and has already begun.
 
-**The governing rule:** If the response to the contextualizing question is minimal, closed, or "I don't know" — the system receives it as Preservation and stops. It does not try to move the person toward Discovery. Discovery happens when the person initiates it, not when the system decides it should happen.
+**The governing rule:** If the StoryTeller's response to the contextualizing question is minimal, closed, or "I don't know" — the system receives it as Preservation and stops. It does not try to move the StoryTeller toward Discovery. Discovery happens when the StoryTeller initiates it, not when the system decides it should happen.
 
 ---
 

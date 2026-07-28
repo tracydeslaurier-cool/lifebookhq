@@ -33,16 +33,16 @@ The question that governs every artifact interaction is not "What is this artifa
 
 That question is as important as anything the system could technically determine about the artifact itself. The artifact is only half the story. The other half is why the person brought it forward.
 
-**The five modes of artifact engagement (person-determined, not AI-determined):**
+**The five modes of artifact engagement (StoryTeller-determined, not AI-determined):**
 
-A person may bring an artifact forward to:
+A StoryTeller may bring an artifact forward to:
 - **Share** it — make it part of the LifeBook, no further action required
 - **Remember** it — use it to prompt their own memory, without expecting the system to analyze it
 - **Investigate** it — actively seek to understand what it contains or depicts
 - **Connect** it — anchor it to a specific story, person, or event
 - **Interpret** it — add meaning they have decided to attach to it
 
-AI analysis is an invitation, not a default. The system may offer, once, a question that opens the door to any of these modes. The person's response — including silence — determines which mode they are in. The system follows. It does not lead.
+AI analysis is an invitation, not a default. The system may offer, once, a question that opens the door to any of these modes. The StoryTeller's response — including silence — determines which mode they are in. The system follows. It does not lead.
 
 ---
 
@@ -56,7 +56,7 @@ The thing as it was: a photograph taken in 1955, a handwritten letter, a certifi
 
 The Original Artifact is what the person gives to LifeBook. It is received without modification, without automatic processing, and without interpretation. It is preserved as it is — in whatever state it arrives: faded, damaged, blurry, partially legible, in a language no one in the family can now read.
 
-**Governing principle:** The Original Artifact is never automatically improved, enhanced, colourized, or translated by the system. Doing so without the steward's explicit instruction treats the original as inadequate. It is not inadequate. It is the record as it exists.
+**Governing principle:** The Original Artifact is never automatically improved, enhanced, colourized, or translated by the system. Doing so without the StoryTeller's explicit decision treats the original as inadequate. It is not inadequate. It is the record as it exists.
 
 **What the AI may do with the Original Artifact:**
 - Confirm it was received and is preserved
@@ -79,16 +79,16 @@ A technical improvement to the artifact's accessibility. A digitized scan made f
 
 Restoration changes the artifact's accessibility without changing its authenticity. A colourized photograph is more visually accessible, but it is not a better record of the original moment — the original moment was black-and-white. Both the Original and the Restoration coexist. Neither replaces the other.
 
-**Who initiates Restoration:** The steward. Always. The system never initiates Restoration unprompted.
+**Who initiates Restoration:** The StoryTeller or Steward, explicitly. The system never initiates Restoration unprompted. Restoration is a decision about the artifact's accessibility — it may be initiated by the person who holds meaning about the artifact (StoryTeller) or by the person who governs the LifeBook (Steward), but it is always a human choice.
 
-**How Restoration is offered:** As a specific, labelled option that the steward chooses to initiate — not as an automatic enhancement that appears alongside the original without acknowledgment.
+**How Restoration is offered:** As a specific, labelled option that the person chooses to initiate — not as an automatic enhancement that appears alongside the original without acknowledgment.
 
 **What Restoration does not do:**
 - Replace the Original Artifact
 - Become the "authoritative" version of the record
 - Add interpretive value — a colourized photograph does not reveal new historical information
 
-**The colourization case specifically:** Colourization is technically simple, visually dramatic, and emotionally complicated. Some family members will welcome it. Others will find it a falsification of the actual moment. The system does not express a preference. The steward initiates it or does not. If initiated, it is clearly labelled as a Restoration — not as "the photograph" but as "a colourized version of the photograph."
+**The colourization case specifically:** Colourization is technically simple, visually dramatic, and emotionally complicated. Some family members will welcome it. Others will find it a falsification of the actual moment. The system does not express a preference. The StoryTeller or Steward initiates it or does not. If initiated, it is clearly labelled as a Restoration — not as "the photograph" but as "a colourized version of the photograph."
 
 ---
 
@@ -116,23 +116,37 @@ Interpretation is the only layer that belongs exclusively to humans. It cannot b
 
 ## 3. What the Experience Looks Like
 
-### For the steward
+### For the StoryTeller
 
-A steward managing their LifeBook sees their artifacts in three states:
+A StoryTeller interacting with an artifact moves through the relationship on their own terms. The system surfaces what it received and holds space for what the StoryTeller wants to add.
 
-**Received:** The artifact has been uploaded and is in the governed record as a pending artifact. It is preserved. It awaits context.
+The artifact exists in one of three states from the StoryTeller's perspective:
 
-**Contextualized:** The artifact has at least one piece of human-provided Interpretation — a name, a date, a caption, a story anchor. It is linked to a thread.
+**Received:** The artifact has been uploaded and is preserved. The StoryTeller may have provided minimal context or none. It is waiting — for the right session, the right memory, the right moment. This is a complete state, not an incomplete one.
 
-**Complete:** The artifact has an Original, is anchored to a thread, has at least one piece of Interpretation, and has been reviewed by the steward. It is part of the authoritative LifeBook record.
+**Contextualized:** The StoryTeller has added at least one piece of Interpretation — a name, a date, a caption, a memory. The artifact is anchored to a thread.
 
-The experience should never imply that a Received artifact is broken or incomplete. It is simply waiting. Many artifacts will wait for months or years. That is expected and normal.
+**Held for others:** The StoryTeller has provided what they know and indicated that someone else might know more. The artifact remains open for additional Interpretation from future Contributors or other StoryTellers.
 
-### For a contributor
+The experience must never imply that a Received artifact is broken or that the StoryTeller has failed to complete something. Many artifacts will wait months or years. That is expected and normal.
 
-A contributor (a family member invited to add material) sees artifacts in the threads they have access to. They can add Interpretation to artifacts — captions, identifications, stories — and those additions enter the review queue as `submission_origin = 'family_contribution'` and `review_status = 'pending'`.
+### For the Steward
 
-Contributors cannot initiate Restoration. They cannot modify the Original Artifact. They can only add to the Interpretation layer, which the steward then reviews.
+The Steward's view of artifacts is primarily governance, not meaning. The Steward sees:
+
+- Artifacts awaiting review (`validity_state = 'pending_review'`) — requiring a decision to approve, restrict, or request more information
+- Access classifications — who can see what
+- Contributions from other StoryTellers or Contributors — entering the review queue
+
+The Steward approves what enters the authoritative record. The Steward controls who can add Interpretation. The Steward does not determine what the artifact means — that is the StoryTeller's role.
+
+One person often holds both roles. When they do, the experience should follow the context: upload and contextualization are StoryTeller moments; review and access decisions are Steward moments.
+
+### For a StoryTeller or Contributor (non-Steward)
+
+A StoryTeller or Contributor who has been invited into a LifeBook sees artifacts in the threads they have access to. They can add Interpretation — captions, identifications, stories — and those additions enter the review queue as `submission_origin = 'family_contribution'` and `review_status = 'pending'`.
+
+Non-Steward StoryTellers cannot initiate Restoration. They cannot modify the Original Artifact. They can only add to the Interpretation layer, which the Steward then reviews. Their Interpretation is as potentially meaningful as any other — its governance path (review queue) is what is different, not its value.
 
 ### For the AI
 
@@ -141,10 +155,10 @@ The AI sees artifacts as objects to contextualize, not to improve. Its role in t
 1. Trigger the upload offer when appropriate (CONTEXTUAL_UPLOAD_FLOW.md §2)
 2. Receive the artifact — confirm receipt, link to thread, create artifact record
 3. Ask one question that invites Interpretation
-4. Receive whatever Interpretation the person provides (including "I don't know")
+4. Receive whatever the StoryTeller provides (including "I don't know")
 5. Hold the artifact and the conversation state for future sessions
 
-The AI does not evaluate artifacts. It does not see an artifact of a destroyed house and recognize the loss. It sees an artifact and asks what the person can tell it. The loss, if named, is received — not interpreted.
+The AI does not evaluate artifacts. It does not see an artifact of a destroyed house and recognize the loss. It sees an artifact and asks what the StoryTeller can tell it. The loss, if named, is received — not interpreted.
 
 ---
 

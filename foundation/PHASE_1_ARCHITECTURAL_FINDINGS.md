@@ -109,6 +109,26 @@ The following questions are unresolved by design and expected to be answered by 
 
 ---
 
+### OQ-7: How does the schema represent the StoryTeller role?
+
+**Component affected:** `lifebook_memberships.role` enum, application layer, future migration  
+**Question:** The DP has formalized three distinct human roles: Steward (governance), StoryTeller (meaning-bearing), and Contributor (supporting enrichment). The current schema has `steward` and `contributor` in `lifebook_memberships.role`. The distinction between StoryTeller and Contributor within the `contributor` value is not captured.
+
+This means a neighbour who holds the only surviving memory of a person is represented identically to a professional archivist uploading documents — both are `contributor`. The system cannot distinguish a meaning-bearing contribution from an informational one.
+
+**Resolution options (decision deferred to post-validation):**
+1. Add `storyteller` as a distinct role value to `lifebook_memberships.role` in a future migration
+2. Add a `membership_intent` column (`text` or enum) to capture the relationship type alongside the governance role, without changing the existing role values
+3. Handle the distinction at the application layer only — role label remains `contributor`, but the application marks certain contributor sessions as StoryTeller-mode based on session context
+
+**Why deferred:** The right schema representation depends on what Phase 1 validation reveals about how StoryTellers actually differ from Contributors in practice — what different capabilities they need, how the AI should behave differently toward them, and whether the distinction appears in conversation or only in governance.
+
+**What must not happen:** The schema change should not be authored before validation establishes the use cases. Building a `storyteller` role value before understanding how it will be used in the conversation experience risks building the wrong model.
+
+**Cross-reference:** ROLE_DEFINITIONS.md — the authoritative vocabulary reference.
+
+---
+
 ## Confirmed Architectural Constraints (Pre-Validation)
 
 The following are established by Principles IX and X and are not subject to revision by validation findings. They may be implemented differently, but they may not be removed:
