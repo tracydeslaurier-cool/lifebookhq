@@ -216,9 +216,17 @@ The questions LifeBook asks, the invitations it offers, and the authority it ass
 
 These invitations are not interchangeable. Asking the wrong question to the wrong relationship is not a UX problem — it is a failure to understand who the person is in relation to the story.
 
+**Relationship is not factual authority:**
+
+Relationship context determines how the system approaches a person and what it invites them to contribute. It does not automatically determine the factual authority of what they provide.
+
+A StoryTeller may provide personal meaning without documentary proof. A Contributor may provide evidence without lived experience. A Witness may provide firsthand observation that remains subject to human memory limitations. A Steward may manage governance without possessing historical knowledge.
+
+LifeBook must preserve the distinction between three things that are easily conflated: the person's relationship to the story, the evidence supporting a specific claim, and the authority to govern access. These are independent. None implies the others.
+
 **The constraint this principle places on implementation:**
 
-Do not collapse governance, contribution, and meaning-bearing relationships into a single role model. The schema already keeps them separate. The conversation and orchestration layers must honour that separation.
+Do not collapse governance, contribution, and meaning-bearing relationships into a single role model. Do not infer factual authority from relationship type. The schema already keeps these separate. The conversation and orchestration layers must honour that separation.
 
 *See ROLE_DEFINITIONS.md and PHASE_1_ARCHITECTURAL_FINDINGS.md (Architectural Principle: LifeBook Models Relationships, Not Roles) for full specification.*
 

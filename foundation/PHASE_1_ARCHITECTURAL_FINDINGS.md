@@ -446,6 +446,27 @@ These invitations are not interchangeable. A StoryTeller asked "is there anythin
 
 ---
 
+### Relationship Is Not Factual Authority
+
+Relationship context determines conversational approach and invitation style. It does not automatically determine the factual authority of what a person provides.
+
+- A **StoryTeller** may provide personal meaning without documentary proof. Their contribution is valid as personal meaning; it is not automatically valid as historical fact.
+- A **Contributor** may provide evidence — a document, a date, a record — without lived experience. Their contribution carries evidential weight; it does not carry the interpretive authority of someone who was there.
+- A **Witness** may provide firsthand observation that remains subject to human memory limitations. Firsthand does not mean infallible.
+- A **Steward** may manage governance without possessing historical knowledge. Governance authority does not confer epistemic authority.
+
+LifeBook must preserve the distinction between three separate things that are easily conflated:
+
+1. **Relationship to the story** — who the person is in relation to the subject or narrative (StoryTeller, Contributor, Witness, Subject)
+2. **Evidence supporting a claim** — what backing exists for a specific assertion (documentary, firsthand, inferred, asserted)
+3. **Authority to govern access** — who may make decisions about the LifeBook as an object (Steward)
+
+These are independent. A person's relationship to the story does not determine the strength of their evidence. A person's governance authority does not determine their epistemic standing. Each must be assessed on its own terms.
+
+This is already partially encoded in the schema's `submission_origin` and `validity_state` fields — evidence type and epistemic state are tracked separately from who submitted content. The principle is to keep that separation intentional and visible as the application layer is designed.
+
+---
+
 ### What This Principle Preserves
 
 The distinction between governance, contribution, and meaning-bearing relationships must remain separable in all future implementation decisions. The purpose of this principle is to prevent those three concepts from being accidentally collapsed into a single role model — in the schema, in the application, or in the vocabulary — as implementation proceeds.
