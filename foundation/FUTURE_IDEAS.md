@@ -117,4 +117,33 @@ Ideas in this document are not prioritised against each other. Prioritisation ha
 
 ---
 
-*FUTURE_IDEAS.md — LifeBook HQ — append-only — last updated 2026-07-27 (added Interpretation as candidate architectural layer)*
+### 2026-07-28 — Authenticated Expression Provenance Model
+
+**Context:** Principle XII (Authentic Expression) and its AI-Assisted Expression ruling establish that AI-drafted content may qualify as authenticated StoryTeller expression, provided the StoryTeller knowingly reviews, revises, and explicitly adopts the final result. That ruling creates a future implementation obligation: the system must be able to demonstrate, for any given expression, that authentication was properly established.
+
+**What future implementation must preserve:**
+
+- The StoryTeller's original spoken or written input
+- Each AI-assisted draft
+- Subsequent human revisions
+- The final adopted expression
+- The identity of the person authenticating it
+- The date, time, and method of authentication
+- The relationship between all versions
+- Any later withdrawal, supersession, or correction of that authentication
+
+**Why this is more than version history:** This is a chain of expressive provenance culminating in an explicit authentication event. The provenance trail does not diminish the authenticity of the final expression — it demonstrates how authenticity was established. The distinction the system must preserve: source material / editorial assistance / revision / adoption / authenticated StoryTeller expression. These are not interchangeable categories.
+
+**Implementation shorthand:** "Version history tied to an authentication event."
+
+**Why deferred:** No current implementation involves AI-assisted first-person expression. The schema requirements cannot be correctly specified until the interaction patterns, consent flows, and review UX are designed. Designing the data model before the workflow is known would produce wrong columns.
+
+**What would trigger scoping:** Formal design of first-person narration, voice synthesis, or AI drafting workflows — any capability that produces content intended to be attributed to the StoryTeller in the first person.
+
+**Reference:** Principle XII — Authentic Expression (LIFEBOOK_PRINCIPLES.md).
+
+**Note:** This belongs in FUTURE_IDEAS.md rather than DEFERRED_TYPE_REGISTER.md. This is a future capability and architectural obligation — not yet a known type or resolvable domain entity. The type register captures unresolved schema-level concepts; this is an unimplemented capability milestone.
+
+---
+
+*FUTURE_IDEAS.md — LifeBook HQ — append-only — last updated 2026-07-28 (added Authenticated Expression Provenance Model)*
