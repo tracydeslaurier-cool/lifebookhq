@@ -232,6 +232,75 @@ Do not collapse governance, contribution, and meaning-bearing relationships into
 
 ---
 
+## Principle XII — Authentic Expression
+
+Only the StoryTeller may speak for the StoryTeller.
+
+LifeBook exists to preserve authentic human expression, not to simulate it.
+
+A StoryTeller may record stories in any language they choose. Every authenticated recording made by the StoryTeller is an original historical artifact and may be presented to future listeners. AI may assist people in understanding those expressions. It shall never replace or imitate them.
+
+LifeBook may reproduce a StoryTeller's authenticated expressions only with that StoryTeller's explicit consent. It shall never generate new statements, opinions, memories, conversations, or responses in the StoryTeller's identity.
+
+### Authentic Expression as Evidence
+
+Authentic expression is treated as evidence. This extends the existing architectural principles already established:
+
+- **Originals are Sacred.** The original expression is the permanent historical record.
+- **Interpretation is Disposable.** Interpretive layers exist only to help a listener understand that record. The evidence never changes. The interpretation is always secondary.
+- **AI Assists. Humans Decide.** AI may help future generations understand a StoryTeller's record. It shall never replace it.
+
+Language, voice, accent, pacing, silence, humour, emotion, and delivery are all part of the historical record. LifeBook exists to preserve how people chose to express themselves — not merely the information they conveyed.
+
+### Future Permissions
+
+If first-person presentation is ever implemented, it must require explicit opt-in consent from the StoryTeller. Examples of future permissions may include:
+
+- Reproduction of authenticated voice recordings
+- Reproduction of authenticated video recordings
+- Reproduction of authenticated photographs
+- Presentation of authenticated quotations
+
+These permissions authorize reproduction of existing expression only. They do not authorize AI to create new expression.
+
+### Permanent Prohibitions
+
+LifeBook shall never:
+
+- Generate new thoughts in a StoryTeller's voice
+- Answer questions while pretending to be the StoryTeller
+- Simulate future opinions
+- Continue conversations after authenticated recordings end
+- Create "AI ghosts" or digital personas
+- Present AI-generated speech as though it originated from the StoryTeller
+
+The StoryTeller's identity is never synthesized.
+
+### Translation
+
+Translation serves the listener, not the StoryTeller.
+
+Seamless AI translation in the StoryTeller's own synthesized voice is permanently prohibited. LifeBook may assist understanding through clearly identified interpretive layers:
+
+- Subtitles
+- Translated transcripts
+- Clearly identified voice-over translations
+- Accessibility captions
+
+These aids must never obscure or replace the original expression. The listener must always be able to distinguish between the StoryTeller's authentic expression and AI's interpretation.
+
+A StoryTeller may choose to record the same story in multiple languages. Each recording is an independent authenticated expression and is treated as an original historical artifact.
+
+### The Guiding Boundary
+
+> *Comprehension may be augmented. Expression may not be altered.*
+
+This principle is a constitutional boundary, not an implementation guide. It is not a request to build first-person narration, voice synthesis, or translation. Its purpose is to ensure that when any of those capabilities are ever considered, this constraint governs from the start.
+
+*Note: This principle establishes an architectural boundary for future capability decisions. No current implementation is affected.*
+
+---
+
 ## On These Principles
 
 These principles were not invented. They emerged from the design process: from the governance architecture, from the migration philosophy, from the tone guide, and from conversations about what LifeBook actually is.
@@ -245,4 +314,4 @@ They should never be weakened under time pressure, technical convenience, or fea
 
 ---
 
-*LIFEBOOK_PRINCIPLES.md — LifeBook HQ — 2026-07-27 — updated with Principles IX and X (Human Sovereignty of Meaning, The Invitation Principle)*
+*LIFEBOOK_PRINCIPLES.md — LifeBook HQ — 2026-07-28 — updated with Principles IX–XII (Human Sovereignty of Meaning, The Invitation Principle, LifeBook Models Relationships Not Roles, Authentic Expression)*
