@@ -101,4 +101,20 @@ Ideas in this document are not prioritised against each other. Prioritisation ha
 
 ---
 
-*FUTURE_IDEAS.md — LifeBook HQ — append-only — last updated 2026-07-27 (added Authorship, Provenance, and AI Disclosure Layer; updated portrait entry with cross-reference)*
+### 2026-07-27 — Interpretation as a distinct architectural layer
+
+**Context:** During preparation of Phase 0 policy documentation, a conceptual distinction emerged between Evidence and Representation that the current four-layer model (Reality / Evidence / Governance / Representation) does not explicitly capture: Interpretation.
+
+**Definition candidate:** Interpretation includes human conclusions, contextual explanations, thematic analysis, inferred meaning, and narrative framing that is derived from evidence but not identical to it. A photograph is Evidence. The caption "This was taken the summer before he emigrated" is Interpretation. A claim that "Bohdan valued education above all else" derived from multiple source documents is Interpretation. The current architecture has no layer or type that clearly distinguishes Interpretation from raw Evidence or from AI-generated Representation.
+
+**Why it may matter:** If Interpretation is treated as Evidence, it inherits Evidence's epistemological weight — but it is actually a step removed, carrying the interpreter's perspective and context. If it is treated as Representation (narrative output), it loses traceability back to the underlying evidence chain. A distinct Interpretation layer could support: interpreter attribution (who drew this conclusion?), evidence anchoring (which sources support this interpretation?), contestability (interpretations may be challenged without challenging the underlying evidence), and cultural framing (the same evidence may yield different interpretations across family branches or cultural contexts).
+
+**Why deferred:** The current four-layer model is sufficient for Phase 0 and Phase 1. Adding an Interpretation layer before implementation experience would risk over-engineering a distinction that may or may not prove necessary in practice. The right time to evaluate this is when real conversations with Founding Members produce content that the current model cannot cleanly classify.
+
+**What would trigger scoping:** A concrete case during Phase 1 or early Founding Member sessions where a steward or interviewer produces content that is clearly neither raw Evidence nor authored Representation — content that is derived, framed, and attributed to a human interpreter, requiring distinct governance treatment.
+
+**Cross-reference:** If scoped, this would interact with the Authorship, Provenance, and AI Disclosure Layer (above), since AI-generated interpretations would require the same disclosure and review chain as any other AI-produced content.
+
+---
+
+*FUTURE_IDEAS.md — LifeBook HQ — append-only — last updated 2026-07-27 (added Interpretation as candidate architectural layer)*
