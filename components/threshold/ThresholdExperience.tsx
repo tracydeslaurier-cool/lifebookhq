@@ -18,8 +18,17 @@ import type { VoicePackId } from "@/lib/voice-packs/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * The Threshold — a discovery experiment. Three variants share this brain and
- * differ only in their arrival visuals:
+ * ThresholdExperience — the instrumented A/B/C discovery experiment.
+ *
+ * DECISION (2026-08-03): A, B, and C are no longer competing alternatives.
+ * The canonical product threshold is now ThresholdScreen (components/threshold/
+ * ThresholdScreen.tsx), rendered at / via OpeningExperience. That component
+ * implements the universal first-visit experience: darkness → crack → Begin →
+ * language rotation → invitation.
+ *
+ * This component and the /begin/a|b|c routes are retained as an instrumented
+ * archive. Their findings informed the design of ThresholdScreen. Three variants
+ * share this brain and differ only in their arrival visuals:
  *   A (radical simplicity): nothing but the logo, voice, text, globe.
  *   B (presence): a gentle breathing halo — "I'm here whenever you're ready."
  *   C (invitation): a warm opening in words.

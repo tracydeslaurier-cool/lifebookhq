@@ -13,6 +13,7 @@ export type VoicePackId =
 export type VoicePackStrings = {
   begin: string;
   touchWordYouUnderstand: string;
+  storyInvitation: string;
   whatsOnYourMind: string;
   inputPlaceholder: string;
   activateMicrophone: string;

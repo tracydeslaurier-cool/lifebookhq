@@ -9,6 +9,7 @@ export const enVoicePack: VoicePack = {
   strings: {
     begin: "Begin",
     touchWordYouUnderstand: "Touch the word you understand.",
+    storyInvitation: "Every story has a beginning. Where would you like to begin?",
     whatsOnYourMind: "What's on your mind today?",
     inputPlaceholder: "Write here…",
     activateMicrophone: "Speak",

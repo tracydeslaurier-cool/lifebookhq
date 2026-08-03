@@ -63,6 +63,66 @@ body {
   border-radius: 3px;
 }
 
+/* ── Threshold — crack / light animation ────────────────────────────────
+   The egg hatching: darkness holds, a hairline crack opens, warm amber
+   light floods through, and the darkness lifts.
+   All three keyframes honour prefers-reduced-motion via the global rule
+   above — animation-duration collapses to 0.01ms so the end-state
+   renders instantly with no movement.                                    */
+
+/* The dark veil that covers the scene until the crack opens */
+@keyframes lb-threshold-veil-lift {
+  0%, 35%  { opacity: 1; }
+  80%      { opacity: 0; }
+  100%     { opacity: 0; }
+}
+.lb-threshold-veil {
+  animation: lb-threshold-veil-lift 3s ease-in forwards;
+}
+
+/* A vertical amber hairline growing from the centre of the screen */
+@keyframes lb-threshold-crack-grow {
+  0%   { height: 0;     opacity: 0; }
+  12%  { height: 20vh;  opacity: 1; }
+  55%  { height: 65vh;  opacity: 0.85; }
+  88%  { height: 80vh;  opacity: 0.4; }
+  100% { height: 85vh;  opacity: 0; }
+}
+.lb-threshold-crack {
+  width: 1px;
+  height: 0;
+  opacity: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--lb-accent) 30%,
+    var(--lb-accent) 70%,
+    transparent 100%
+  );
+  box-shadow: 0 0 10px 3px rgba(212, 165, 116, 0.55);
+  animation: lb-threshold-crack-grow 2.6s ease-out 0.4s forwards;
+}
+
+/* Warm radial bloom radiating from behind the crack */
+@keyframes lb-threshold-bloom-expand {
+  0%   { transform: scale(0);   opacity: 0; }
+  25%  { transform: scale(1);   opacity: 0.28; }
+  75%  { transform: scale(2.4); opacity: 0.14; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+.lb-threshold-bloom-inner {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(212, 165, 116, 0.45) 0%,
+    rgba(212, 165, 116, 0.15) 40%,
+    transparent 70%
+  );
+  animation: lb-threshold-bloom-expand 2.6s ease-out 0.9s forwards;
+}
+
 /* Threshold experiment — Variant B: a slow breathing presence,
    "I'm here whenever you're ready." (Honours prefers-reduced-motion above.) */
 @keyframes lb-breathe {

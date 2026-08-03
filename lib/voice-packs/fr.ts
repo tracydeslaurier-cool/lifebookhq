@@ -9,6 +9,7 @@ export const frVoicePack: VoicePack = {
   strings: {
     begin: "Commencer",
     touchWordYouUnderstand: "Touchez le mot que vous comprenez.",
+    storyInvitation: "Chaque histoire a un début. Par où aimeriez-vous commencer ?",
     whatsOnYourMind: "Qu'avez-vous en tête aujourd'hui ?",
     inputPlaceholder: "Écrivez ici…",
     activateMicrophone: "Parler",

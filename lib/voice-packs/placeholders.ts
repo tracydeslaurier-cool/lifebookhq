@@ -15,6 +15,7 @@ export const placeholderVoicePacks: VoicePack[] = [
       begin: "Beginnen",
       touchWordYouUnderstand:
         "Berühren Sie das Wort, das Sie verstehen.",
+      storyInvitation: "Jede Geschichte hat einen Anfang. Wo möchten Sie beginnen?",
       whatsOnYourMind: "Was beschäftigt Sie heute?",
       inputPlaceholder: "Hier schreiben…",
       activateMicrophone: "Sprechen",
@@ -31,6 +32,7 @@ export const placeholderVoicePacks: VoicePack[] = [
     strings: {
       begin: "Comenzar",
       touchWordYouUnderstand: "Toca la palabra que entiendes.",
+      storyInvitation: "Cada historia tiene un comienzo. ¿Por dónde le gustaría empezar?",
       whatsOnYourMind: "¿Qué tienes en mente hoy?",
       inputPlaceholder: "Escribe aquí…",
       activateMicrophone: "Hablar",
@@ -47,6 +49,7 @@ export const placeholderVoicePacks: VoicePack[] = [
     strings: {
       begin: "Zacznij",
       touchWordYouUnderstand: "Dotknij słowa, które rozumiesz.",
+      storyInvitation: "Każda historia ma początek. Od czego chciałbyś zacząć?",
       whatsOnYourMind: "Co masz dziś na myśli?",
       inputPlaceholder: "Pisz tutaj…",
       activateMicrophone: "Mów",
@@ -63,6 +66,7 @@ export const placeholderVoicePacks: VoicePack[] = [
     strings: {
       begin: "Inizia",
       touchWordYouUnderstand: "Tocca la parola che capisci.",
+      storyInvitation: "Ogni storia ha un inizio. Da dove vorresti cominciare?",
       whatsOnYourMind: "Cosa hai in mente oggi?",
       inputPlaceholder: "Scrivi qui…",
       activateMicrophone: "Parla",

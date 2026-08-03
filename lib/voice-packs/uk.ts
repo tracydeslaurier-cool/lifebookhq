@@ -9,6 +9,7 @@ export const ukVoicePack: VoicePack = {
   strings: {
     begin: "Почати",
     touchWordYouUnderstand: "Доторкніться до слова, яке розумієте.",
+    storyInvitation: "Кожна історія має початок. З чого б ви хотіли почати?",
     whatsOnYourMind: "Що у вас на думці сьогодні?",
     inputPlaceholder: "Пишіть тут…",
     activateMicrophone: "Говорити",

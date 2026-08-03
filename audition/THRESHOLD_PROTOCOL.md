@@ -1,19 +1,29 @@
 # Threshold Discovery Protocol
 
-*A short guide for running the three-variant threshold experiment consistently, so the instrumentation tells us **what** happened and the facilitator can discover **why**.*
+*A short guide for running the threshold experiment sessions consistently, so the instrumentation tells us **what** happened and the facilitator can discover **why**.*
 
-## What we are studying
+## Decision record (2026-08-03)
 
-Presence begins **before** conversation. The threshold is not part of the conversation — it is the moment a stranger decides: *"Yes… I'll tell you something about myself."*
+**A, B, and C are no longer competing alternatives.** The threshold experiment informed the design, and a governing decision was made: the canonical first-visit experience is now the Universal Threshold — implemented in `ThresholdScreen` and rendered at `/` via `OpeningExperience`. The A/B/C routes at `/begin/a|b|c` are retained as an instrumented archive.
 
-That decision is what we are studying. Everything **before** first entrustment belongs to this experiment. Everything **after** belongs to the Companion, which is unchanged and not under test here. Keep the two separate.
+The governing principle: *A and B asked the visitor to understand the interface before experiencing LifeBook. The threshold lets the visitor experience LifeBook before asking anything of them.*
 
-We are not testing three products. We are asking three questions about how trust begins:
+The canonical sequence: darkness → crack of light → Begin word → language rotation → "Every story has a beginning. Where would you like to begin?"
+
+The A/B/C experiment answered three questions:
 - **A — Radical Simplicity:** do people understand how to begin without instruction?
 - **B — Presence:** does a wordless breathing presence create confidence before language?
 - **C — Invitation:** does a warm welcome lower the emotional threshold?
 
-The primary measure is **First Entrustment Rate** — how many arrivals voluntarily entrust a first meaningful story.
+Their findings are incorporated in the design of `ThresholdScreen`. New threshold sessions should use the canonical experience, not these variants. The protocol below remains accurate for any continued archival observation of A/B/C sessions.
+
+## What we were studying
+
+Presence begins **before** conversation. The threshold is not part of the conversation — it is the moment a stranger decides: *"Yes… I'll tell you something about myself."*
+
+That decision is what we studied. Everything **before** first entrustment belongs to this experiment. Everything **after** belongs to the Companion, which is unchanged and not under test here. Keep the two separate.
+
+The primary measure was **First Entrustment Rate** — how many arrivals voluntarily entrust a first meaningful story.
 
 ## Inviting testers
 

@@ -9,6 +9,7 @@ export const ruVoicePack: VoicePack = {
   strings: {
     begin: "Начать",
     touchWordYouUnderstand: "Коснитесь слова, которое понимаете.",
+    storyInvitation: "У каждой истории есть начало. С чего бы вы хотели начать?",
     whatsOnYourMind: "Что у вас на уме сегодня?",
     inputPlaceholder: "Пишите здесь…",
     activateMicrophone: "Говорить",
