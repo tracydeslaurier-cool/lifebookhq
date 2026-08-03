@@ -119,7 +119,8 @@ export function ThresholdScreen({ detectedPack, onEnter }: ThresholdScreenProps)
     if (!spokenInstructionRef.current) {
       spokenInstructionRef.current = true;
       // Speak "Touch the word you understand." once, in the detected language.
-      speakText(detectedPack.strings.touchWordYouUnderstand, detectedPack);
+      // TTS may be unavailable on some devices — never let it crash the UI.
+      try { speakText(detectedPack.strings.touchWordYouUnderstand, detectedPack); } catch { /* silent */ }
     }
 
     const rotationStart = window.setTimeout(() => {
@@ -144,7 +145,8 @@ export function ThresholdScreen({ detectedPack, onEnter }: ThresholdScreenProps)
       setCurrentPack(pack);
       // Short spoken cue only — "Begin" in that language.
       // Display and speech are set in the same synchronous tick.
-      speakText(pack.strings.begin, pack);
+      // TTS may be unavailable on some devices — never let it crash the UI.
+      try { speakText(pack.strings.begin, pack); } catch { /* silent */ }
       rotationTimerRef.current = window.setTimeout(tick, ROTATION_INTERVAL_MS);
     };
 
