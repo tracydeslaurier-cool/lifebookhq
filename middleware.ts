@@ -16,6 +16,9 @@ import { NextResponse, type NextRequest } from "next/server";
 const GATE_COOKIE = "lb_gate";
 const VIEWER_COOKIE = "lb_viewer";
 const EXEMPT_PREFIXES = ["/welcome", "/api/identity/complete", "/_next", "/favicon"];
+// The public landing page. Matched exactly — "/" as a prefix would open
+// the whole deployment.
+const EXEMPT_EXACT = ["/"];
 const VIEWER_PREFIXES = ["/replay", "/api/experiment/replay"];
 const COOKIE_MAX_AGE = 180 * 24 * 60 * 60;
 
@@ -65,7 +68,10 @@ export function middleware(request: NextRequest) {
   // The staging gate for everything else.
   const gateKey = process.env.STAGING_GATE_KEY;
   if (!gateKey) return NextResponse.next();
-  if (EXEMPT_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+  if (
+    EXEMPT_EXACT.includes(pathname) ||
+    EXEMPT_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  ) {
     return NextResponse.next();
   }
   return keyDoor(request, "gate", GATE_COOKIE, gateKey);

@@ -48,7 +48,7 @@ function Welcome() {
               Your story can find you now — here, and on any of your devices.
             </p>
             <Link
-              href="/"
+              href="/enter"
               className="mt-12 inline-block font-sans text-xl font-extralight tracking-[0.1em] underline-offset-8 transition-opacity duration-500 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-[var(--lb-fg-soft)]"
             >
               Continue your story
@@ -60,7 +60,7 @@ function Welcome() {
               This doorway has closed — they only stay open a little while.
             </p>
             <Link
-              href="/"
+              href="/enter"
               className="mt-12 inline-block font-sans text-xl font-extralight tracking-[0.1em] underline-offset-8 transition-opacity duration-500 hover:opacity-75"
             >
               Ask for another from your story
