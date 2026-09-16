@@ -42,3 +42,9 @@ lifebook-export-*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# supabase CLI scratch — contains the linked project ref and pooler URL
+supabase/.temp/
+
+# Google Drive sync scratch
+.tmp.driveupload/

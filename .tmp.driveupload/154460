@@ -1,7 +1,0 @@
-import { LandingPage } from "@/components/landing/LandingPage";
-
-// The public doorstep — outside the staging gate.
-// The experience itself now lives at /enter, behind the key.
-export default function Home() {
-  return <LandingPage />;
-}
